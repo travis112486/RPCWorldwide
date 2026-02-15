@@ -31,6 +31,8 @@ interface UploadProgress {
 export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: StepMediaProps) {
   const [uploading, setUploading] = useState(false);
   const [uploads, setUploads] = useState<UploadProgress[]>([]);
+  const [externalUrl, setExternalUrl] = useState('');
+  const [addingUrl, setAddingUrl] = useState(false);
   const headShotInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -227,9 +229,57 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
     if (videoInputRef.current) videoInputRef.current.value = '';
   }
 
+  async function addExternalVideo() {
+    if (!externalUrl.trim()) return;
+    const url = externalUrl.trim();
+
+    // Validate it's a YouTube or Vimeo URL
+    const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+    const isVimeo = url.includes('vimeo.com');
+    if (!isYouTube && !isVimeo) {
+      setErrors({ ...errors, videos: 'Please enter a valid YouTube or Vimeo URL' });
+      return;
+    }
+
+    if (videos.length >= MAX_VIDEOS) {
+      setErrors({ ...errors, videos: `Maximum ${MAX_VIDEOS} videos allowed` });
+      return;
+    }
+
+    setAddingUrl(true);
+    setErrors({ ...errors, videos: '' });
+
+    const { data: record, error: dbError } = await supabase
+      .from('media')
+      .insert({
+        user_id: userId,
+        type: 'video',
+        category: 'demo_reel',
+        storage_path: '',
+        external_url: url,
+        file_name: url,
+        is_primary: false,
+        sort_order: media.length,
+      })
+      .select()
+      .single();
+
+    setAddingUrl(false);
+
+    if (dbError) {
+      setErrors({ ...errors, videos: dbError.message });
+      return;
+    }
+
+    onMediaChange([...media, record as Media]);
+    setExternalUrl('');
+  }
+
   async function deleteMedia(item: Media) {
-    const bucket = item.is_primary ? 'avatars' : 'portfolio';
-    await supabase.storage.from(bucket).remove([item.storage_path]);
+    if (item.storage_path) {
+      const bucket = item.is_primary ? 'avatars' : 'portfolio';
+      await supabase.storage.from(bucket).remove([item.storage_path]);
+    }
     await supabase.from('media').delete().eq('id', item.id);
     onMediaChange(media.filter((m) => m.id !== item.id));
   }
@@ -345,47 +395,108 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
         {/* Video Clips */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-foreground">
-            Video Clips ({videos.length}/{MAX_VIDEOS})
+            Videos ({videos.length}/{MAX_VIDEOS})
           </label>
           <p className="mb-3 text-xs text-muted-foreground">
-            MP4/MOV/WebM, max 100MB each
+            Add YouTube/Vimeo links or upload MP4/MOV/WebM (max 100MB)
           </p>
 
           {videos.length > 0 && (
-            <div className="mb-3 space-y-2">
+            <div className="mb-3 space-y-3">
               {videos.map((v) => (
-                <div key={v.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
-                  <svg className="h-5 w-5 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-                  </svg>
-                  <div className="flex-1 truncate">
-                    <p className="text-sm font-medium text-foreground truncate">{v.file_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {v.file_size_bytes ? `${(v.file_size_bytes / 1024 / 1024).toFixed(1)} MB` : ''}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => deleteMedia(v)}
-                    className="text-destructive hover:text-destructive/80 text-sm"
-                  >
-                    Remove
-                  </button>
+                <div key={v.id} className="rounded-lg border border-border overflow-hidden">
+                  {v.external_url ? (
+                    <div>
+                      {(v.external_url.includes('youtube.com') || v.external_url.includes('youtu.be')) ? (
+                        <iframe
+                          src={getYouTubeEmbedUrl(v.external_url)}
+                          className="aspect-video w-full"
+                          allowFullScreen
+                          title="YouTube video"
+                        />
+                      ) : v.external_url.includes('vimeo.com') ? (
+                        <iframe
+                          src={getVimeoEmbedUrl(v.external_url)}
+                          className="aspect-video w-full"
+                          allowFullScreen
+                          title="Vimeo video"
+                        />
+                      ) : null}
+                      <div className="flex items-center justify-between px-3 py-2">
+                        <p className="text-xs text-muted-foreground truncate flex-1">{v.external_url}</p>
+                        <button
+                          type="button"
+                          onClick={() => deleteMedia(v)}
+                          className="text-destructive hover:text-destructive/80 text-xs ml-2"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-3">
+                      <svg className="h-5 w-5 shrink-0 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+                      </svg>
+                      <div className="flex-1 truncate">
+                        <p className="text-sm font-medium text-foreground truncate">{v.file_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {v.file_size_bytes ? `${(v.file_size_bytes / 1024 / 1024).toFixed(1)} MB` : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => deleteMedia(v)}
+                        className="text-destructive hover:text-destructive/80 text-sm"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
 
           {videos.length < MAX_VIDEOS && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => videoInputRef.current?.click()}
-              disabled={uploading}
-            >
-              Upload Video
-            </Button>
+            <div className="space-y-3">
+              {/* YouTube/Vimeo URL input */}
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  placeholder="Paste YouTube or Vimeo URL..."
+                  value={externalUrl}
+                  onChange={(e) => setExternalUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addExternalVideo(); } }}
+                  className="flex-1 rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addExternalVideo}
+                  disabled={addingUrl || !externalUrl.trim()}
+                  loading={addingUrl}
+                >
+                  Add Link
+                </Button>
+              </div>
+              {/* Or upload a file */}
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => videoInputRef.current?.click()}
+                disabled={uploading}
+              >
+                Upload Video File
+              </Button>
+            </div>
           )}
           <input
             ref={videoInputRef}
@@ -437,4 +548,27 @@ function loadImage(file: File): Promise<HTMLImageElement> {
     img.onerror = reject;
     img.src = URL.createObjectURL(file);
   });
+}
+
+function getYouTubeEmbedUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    let videoId = parsed.searchParams.get('v');
+    if (!videoId && parsed.hostname === 'youtu.be') {
+      videoId = parsed.pathname.slice(1);
+    }
+    return videoId ? `https://www.youtube.com/embed/${videoId}` : '';
+  } catch {
+    return '';
+  }
+}
+
+function getVimeoEmbedUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const id = parsed.pathname.split('/').pop();
+    return id ? `https://player.vimeo.com/video/${id}` : '';
+  } catch {
+    return '';
+  }
 }

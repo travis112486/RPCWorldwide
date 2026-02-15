@@ -5,10 +5,11 @@ import { WIZARD_STEPS } from '@/constants/profile';
 
 interface WizardShellProps {
   currentStep: number;
+  onStepClick?: (step: number) => void;
   children: React.ReactNode;
 }
 
-export function WizardShell({ currentStep, children }: WizardShellProps) {
+export function WizardShell({ currentStep, onStepClick, children }: WizardShellProps) {
   const progressPct = (currentStep / WIZARD_STEPS.length) * 100;
 
   return (
@@ -30,7 +31,15 @@ export function WizardShell({ currentStep, children }: WizardShellProps) {
       {/* Step indicators */}
       <div className="mb-8 hidden sm:flex sm:items-center sm:justify-between">
         {WIZARD_STEPS.map((step) => (
-          <div key={step.number} className="flex items-center gap-2">
+          <button
+            key={step.number}
+            type="button"
+            onClick={() => onStepClick?.(step.number)}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-2 py-1 transition-colors',
+              onStepClick ? 'cursor-pointer hover:bg-muted/50' : 'cursor-default',
+            )}
+          >
             <div
               className={cn(
                 'flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors',
@@ -58,7 +67,7 @@ export function WizardShell({ currentStep, children }: WizardShellProps) {
             {step.number < WIZARD_STEPS.length && (
               <div className="mx-2 hidden h-px w-8 bg-border xl:block" />
             )}
-          </div>
+          </button>
         ))}
       </div>
 

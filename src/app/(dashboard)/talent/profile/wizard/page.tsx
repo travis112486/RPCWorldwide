@@ -278,7 +278,7 @@ function ProfileWizardContent() {
 
   return (
     <DashboardLayout role="talent">
-      <WizardShell currentStep={step}>
+      <WizardShell currentStep={step} onStepClick={(s) => { saveProfile('stay'); setStep(s); }}>
         {errors.general && (
           <div className="mb-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
             {errors.general}

@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(supabase *)",
+      "Bash(gh *)",
+      "Bash(curl *)",
+      "Bash(mkdir *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(export *)",
+      "Bash(cat *)",
+      "Bash(source *)",
+      "Read",
+      "Write",
+      "Edit"
+    ]
+  }
+}

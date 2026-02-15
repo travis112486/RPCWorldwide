@@ -65,3 +65,17 @@ supabase/
 
 ## Environment Variables
 Copy `.env.local.example` to `.env.local` and fill in Supabase credentials.
+
+## Workflow
+- When completing a GitHub issue, add a summary comment and close it with `gh issue close`
+- Run `npm run build` after significant changes to verify compilation
+- Keep `src/types/database.ts` in sync with any Supabase schema changes
+
+## Allowed Operations
+- Read, write, and edit any files under `src/`, `supabase/`, `scripts/`, `docs/`, `public/`
+- Run `npm run dev`, `npm run build`, `npm run lint`
+- Run `npm install` for new dependencies
+- Run `supabase` CLI commands (migration list, db push, etc.)
+- Run `gh` CLI commands (issue, pr operations)
+- Run node scripts in `scripts/` directory
+- Create and modify files as needed for feature development

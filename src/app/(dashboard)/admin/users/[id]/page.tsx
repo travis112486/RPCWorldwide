@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { DashboardLayout } from '@/components/layout';
 import { Badge } from '@/components/ui/badge';
+import { AdminUserActions } from '@/components/admin/user-actions';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -36,13 +37,14 @@ export default async function AdminUserDetailPage({ params }: Props) {
   if (!profile) notFound();
 
   // Fetch related data
-  const [ethRes, skillRes, langRes, unionRes, mediaRes, appRes] = await Promise.all([
+  const [ethRes, skillRes, langRes, unionRes, mediaRes, appRes, tagRes] = await Promise.all([
     supabase.from('profile_ethnicities').select('ethnicity').eq('profile_id', id),
     supabase.from('profile_skills').select('skill_name').eq('profile_id', id),
     supabase.from('profile_languages').select('language').eq('profile_id', id),
     supabase.from('profile_unions').select('union_name').eq('profile_id', id),
     supabase.from('media').select('*').eq('user_id', id).order('sort_order', { ascending: true }),
     supabase.from('applications').select('*, casting_calls(title, project_type)').eq('user_id', id).order('applied_at', { ascending: false }),
+    supabase.from('user_tags').select('id, tag_name').eq('user_id', id),
   ]);
 
   const ethnicities = ethRes.data?.map((e) => e.ethnicity) ?? [];
@@ -52,6 +54,7 @@ export default async function AdminUserDetailPage({ params }: Props) {
   const media = mediaRes.data ?? [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const applications = (appRes.data ?? []) as any[];
+  const tags = (tagRes.data ?? []) as { id: string; tag_name: string }[];
 
   const headshot = media.find((m: { is_primary: boolean; type: string }) => m.is_primary && m.type === 'photo');
   const photos = media.filter((m: { is_primary: boolean; type: string }) => !m.is_primary && m.type === 'photo');
@@ -102,6 +105,13 @@ export default async function AdminUserDetailPage({ params }: Props) {
             </p>
           </div>
         </div>
+
+        {/* Admin Actions (client component for tags + status management) */}
+        <AdminUserActions
+          userId={id}
+          currentStatus={profile.status}
+          initialTags={tags}
+        />
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Profile Info */}

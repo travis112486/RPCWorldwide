@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardLayout } from '@/components/layout';
 import {
@@ -21,6 +21,20 @@ import { WIZARD_STEPS } from '@/constants/profile';
 import type { Profile, Media } from '@/types/database';
 
 export default function ProfileWizardPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout role="talent">
+        <div className="flex h-64 items-center justify-center">
+          <Spinner size="lg" />
+        </div>
+      </DashboardLayout>
+    }>
+      <ProfileWizardContent />
+    </Suspense>
+  );
+}
+
+function ProfileWizardContent() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userId, setUserId] = useState<string>('');
   const [step, setStep] = useState(1);
@@ -37,7 +51,19 @@ export default function ProfileWizardPage() {
   const [showComplete, setShowComplete] = useState(false);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
+
+  // Support ?step=N to jump to a specific step (e.g., from profile edit links)
+  useEffect(() => {
+    const stepParam = searchParams.get('step');
+    if (stepParam) {
+      const n = parseInt(stepParam, 10);
+      if (n >= 1 && n <= WIZARD_STEPS.length) {
+        setStep(n);
+      }
+    }
+  }, [searchParams]);
 
   // Load profile and related data
   const loadProfile = useCallback(async () => {

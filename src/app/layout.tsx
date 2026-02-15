@@ -16,12 +16,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'RPC Worldwide | Casting Network',
   description: 'Connecting talent with casting directors worldwide. Browse casting calls, create your profile, and land your next role.',
+  metadataBase: new URL('https://rpcworldwide.com'),
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
     title: 'RPC Worldwide | Casting Network',
-    description: 'Connecting talent with casting directors worldwide.',
+    description: 'Connecting talent with casting directors worldwide. Browse casting calls, create your profile, and land your next role.',
     url: 'https://rpcworldwide.com',
     siteName: 'RPC Worldwide',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'RPC Worldwide | Casting Network',
+    description: 'Connecting talent with casting directors worldwide.',
   },
 };
 

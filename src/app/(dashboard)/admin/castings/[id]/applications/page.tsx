@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardLayout } from '@/components/layout';
 import { Badge } from '@/components/ui/badge';
@@ -12,31 +13,27 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
+import type { ApplicationRow, CastingRoleRow } from '@/components/admin/applicant-card';
 
-interface ApplicationRow {
-  id: string;
-  user_id: string;
-  role_id: string | null;
+interface CastingDetail {
+  title: string;
+  project_type: string;
+  description: string;
+  compensation_type: string;
+  compensation_details: string | null;
+  location_text: string | null;
+  is_remote: boolean | null;
+  start_date: string | null;
+  end_date: string | null;
+  deadline: string;
+  visibility: string;
   status: string;
-  note: string | null;
-  admin_notes: string | null;
-  applied_at: string;
-  profiles: {
-    display_name: string | null;
-    first_name: string | null;
-    last_name: string | null;
-    city: string | null;
-    state: string | null;
-    talent_type: string[] | null;
-    experience_level: string | null;
-  };
-  casting_roles: {
-    name: string;
-  } | null;
 }
 
-const STATUS_OPTIONS = [
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All Statuses' },
   { value: 'submitted', label: 'Submitted' },
   { value: 'under_review', label: 'Under Review' },
   { value: 'shortlisted', label: 'Shortlisted' },
@@ -44,22 +41,84 @@ const STATUS_OPTIONS = [
   { value: 'booked', label: 'Booked' },
 ];
 
-const statusVariants: Record<string, 'default' | 'secondary' | 'success' | 'destructive' | 'warning'> = {
-  submitted: 'secondary', under_review: 'warning', shortlisted: 'success', declined: 'destructive', booked: 'default',
+const projectTypeLabels: Record<string, string> = {
+  film: 'Film', tv: 'TV', commercial: 'Commercial', print: 'Print',
+  music_video: 'Music Video', theater: 'Theater', web_digital: 'Web/Digital', other: 'Other',
 };
 
-const talentTypeLabels: Record<string, string> = {
-  model: 'Model', actor: 'Actor', voice_actor: 'Voice Actor', dancer: 'Dancer', singer: 'Singer', extra: 'Extra', other: 'Other',
+const compensationLabels: Record<string, string> = {
+  paid: 'Paid', unpaid: 'Unpaid', deferred: 'Deferred', tbd: 'TBD',
 };
+
+const statusVariants: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'secondary'> = {
+  draft: 'secondary', open: 'success', closed: 'warning', archived: 'destructive',
+};
+
+const APP_VIEW_MODE_KEY = 'rpc_admin_app_view_mode';
+type ViewMode = 'card' | 'list';
+
+function loadAppViewMode(): ViewMode {
+  if (typeof window === 'undefined') return 'card';
+  try {
+    const stored = localStorage.getItem(APP_VIEW_MODE_KEY);
+    if (stored === 'card' || stored === 'list') return stored;
+  } catch { /* ignore */ }
+  return 'card';
+}
+
+function saveAppViewMode(mode: ViewMode) {
+  try { localStorage.setItem(APP_VIEW_MODE_KEY, mode); } catch { /* ignore */ }
+}
+
+const appStatusVariants: Record<string, 'default' | 'secondary' | 'success' | 'destructive' | 'warning'> = {
+  submitted: 'secondary',
+  under_review: 'warning',
+  shortlisted: 'success',
+  declined: 'destructive',
+  booked: 'default',
+};
+
+const APP_STATUS_OPTIONS = [
+  { value: 'submitted', label: 'Submitted' },
+  { value: 'under_review', label: 'Under Review' },
+  { value: 'shortlisted', label: 'Shortlisted' },
+  { value: 'declined', label: 'Declined' },
+  { value: 'booked', label: 'Booked' },
+];
+
+const talentTypeLabels: Record<string, string> = {
+  model: 'Model', actor: 'Actor', voice_actor: 'Voice', dancer: 'Dancer',
+  singer: 'Singer', extra: 'Extra', other: 'Other',
+};
+
+function cmToFeetInches(cm: number): string {
+  const totalInches = cm / 2.54;
+  const feet = Math.floor(totalInches / 12);
+  const inches = Math.round(totalInches % 12);
+  return `${feet}'${inches}"`;
+}
+
+function formatDate(dateStr: string | null) {
+  if (!dateStr) return null;
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 export default function AdminCastingApplicationsPage() {
   const params = useParams();
   const castingId = params.id as string;
 
-  const [casting, setCasting] = useState<{ title: string } | null>(null);
+  const [casting, setCasting] = useState<CastingDetail | null>(null);
+  const [roles, setRoles] = useState<CastingRoleRow[]>([]);
   const [applications, setApplications] = useState<ApplicationRow[]>([]);
+  const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [showDescription, setShowDescription] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>(loadAppViewMode);
+
+  // Notes modal
   const [selectedApp, setSelectedApp] = useState<ApplicationRow | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -77,20 +136,35 @@ export default function AdminCastingApplicationsPage() {
   const { toast } = useToast();
 
   const loadData = useCallback(async () => {
+    setFetchError(null);
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push('/login'); return; }
 
-    const [castingRes, appRes] = await Promise.all([
-      supabase.from('casting_calls').select('title').eq('id', castingId).single(),
-      supabase
-        .from('applications')
-        .select('*, profiles(display_name, first_name, last_name, city, state, talent_type, experience_level), casting_roles(name)')
-        .eq('casting_call_id', castingId)
-        .order('applied_at', { ascending: false }),
-    ]);
+    if (!castingId) {
+      setFetchError('No casting ID found in URL');
+      setLoading(false);
+      return;
+    }
 
-    setCasting(castingRes.data);
-    setApplications((appRes.data as unknown as ApplicationRow[]) ?? []);
+    const url = `/api/admin/applications?casting_id=${castingId}`;
+    try {
+      const res = await fetch(url, { cache: 'no-store', credentials: 'include' });
+      const json = await res.json();
+
+      if (!res.ok) {
+        setFetchError(`API error ${res.status}: ${json.error ?? 'Unknown error'}`);
+        setLoading(false);
+        return;
+      }
+
+      setCasting(json.casting as CastingDetail);
+      setRoles(json.roles as CastingRoleRow[]);
+      setApplications(json.applications as ApplicationRow[]);
+      setAvatars(json.avatars as Record<string, string>);
+    } catch (err) {
+      setFetchError(`Fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
     setLoading(false);
   }, [supabase, router, castingId]);
 
@@ -105,6 +179,31 @@ export default function AdminCastingApplicationsPage() {
     setApplications((prev) =>
       prev.map((a) => a.id === appId ? { ...a, status: newStatus } : a),
     );
+  }
+
+  async function updateAppRole(appId: string, newRoleId: string) {
+    const { error } = await supabase
+      .from('applications')
+      .update({ role_id: newRoleId || null })
+      .eq('id', appId);
+
+    if (error) {
+      toast('Failed to reassign role', 'error');
+      return;
+    }
+
+    setApplications((prev) =>
+      prev.map((a) => {
+        if (a.id !== appId) return a;
+        const newRole = roles.find((r) => r.id === newRoleId);
+        return {
+          ...a,
+          role_id: newRoleId || null,
+          casting_roles: newRole ? { id: newRole.id, name: newRole.name } : null,
+        };
+      }),
+    );
+    toast('Role reassigned', 'success');
   }
 
   async function saveAdminNotes() {
@@ -153,9 +252,9 @@ export default function AdminCastingApplicationsPage() {
     toast('Invitation sent.', 'success');
   }
 
-  const filtered = statusFilter
-    ? applications.filter((a) => a.status === statusFilter)
-    : applications;
+  const filtered = applications
+    .filter((a) => !statusFilter || a.status === statusFilter)
+    .filter((a) => !roleFilter || a.role_id === roleFilter);
 
   if (loading) {
     return (
@@ -167,83 +266,334 @@ export default function AdminCastingApplicationsPage() {
 
   return (
     <DashboardLayout role="admin">
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <Link href="/admin/castings" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-2">
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-            Back to Castings
-          </Link>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">{casting?.title ?? 'Applications'}</h1>
-              <p className="mt-1 text-muted-foreground">{applications.length} applicants</p>
+      <div className="space-y-4 sm:space-y-6">
+        {/* Back link */}
+        <Link href="/admin/castings" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+          Back to Castings
+        </Link>
+
+        {/* Error banner */}
+        {fetchError && (
+          <div className="rounded-lg border border-red-300 bg-red-50 p-4 dark:border-red-700 dark:bg-red-950">
+            <p className="text-sm font-medium text-red-800 dark:text-red-200">{fetchError}</p>
+            <Button size="sm" variant="outline" className="mt-2" onClick={() => { setLoading(true); loadData(); }}>
+              Retry
+            </Button>
+          </div>
+        )}
+
+        {/* Casting Details Banner */}
+        {casting && (
+          <Card>
+            <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <CardTitle className="text-lg sm:text-xl">{casting.title}</CardTitle>
+                    <Badge variant={statusVariants[casting.status] ?? 'default'}>{casting.status}</Badge>
+                    <Badge variant="outline">{projectTypeLabels[casting.project_type] ?? casting.project_type}</Badge>
+                    {casting.is_remote && <Badge variant="secondary">Remote</Badge>}
+                  </div>
+                </div>
+                <Button size="sm" onClick={() => setShowInvite(true)} className="shrink-0 self-start">Invite Talent</Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              {/* Description */}
+              {casting.description && (
+                <div className="mb-3">
+                  <p className={`text-xs sm:text-sm text-muted-foreground whitespace-pre-line ${!showDescription ? 'line-clamp-2' : ''}`}>
+                    {casting.description}
+                  </p>
+                  {casting.description.length > 150 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowDescription(!showDescription)}
+                      className="mt-1 text-xs font-medium text-brand-secondary hover:underline"
+                    >
+                      {showDescription ? 'Show less' : 'Show more'}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Metadata row */}
+              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 sm:gap-3 sm:text-sm">
+                {casting.location_text && (
+                  <div>
+                    <p className="font-medium text-muted-foreground">Location</p>
+                    <p className="text-foreground">{casting.location_text}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="font-medium text-muted-foreground">Compensation</p>
+                  <p className="truncate text-foreground">
+                    {compensationLabels[casting.compensation_type] ?? casting.compensation_type}
+                    {casting.compensation_details && ` — ${casting.compensation_details}`}
+                  </p>
+                </div>
+                {(casting.start_date || casting.end_date) && (
+                  <div>
+                    <p className="font-medium text-muted-foreground">Dates</p>
+                    <p className="text-foreground">
+                      {formatDate(casting.start_date)}{casting.end_date ? ` — ${formatDate(casting.end_date)}` : ''}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <p className="font-medium text-muted-foreground">Deadline</p>
+                  <p className="text-foreground">{formatDate(casting.deadline)}</p>
+                </div>
+              </div>
+
+              {/* Roles overview */}
+              {roles.length > 0 && (
+                <div className="mt-3 border-t border-border pt-3">
+                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">Roles</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {roles.map((role) => {
+                      const count = applications.filter((a) => a.role_id === role.id).length;
+                      return (
+                        <Badge key={role.id} variant="outline" className="text-[10px] sm:text-xs">
+                          {role.name} ({count})
+                        </Badge>
+                      );
+                    })}
+                    <Badge variant="outline" className="text-[10px] sm:text-xs">
+                      No role ({applications.filter((a) => !a.role_id).length})
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Toolbar */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
+            <Select
+              id="statusFilter"
+              options={STATUS_FILTER_OPTIONS}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-9 text-xs sm:w-40 sm:text-sm"
+            />
+            {roles.length > 0 && (
+              <Select
+                id="roleFilter"
+                options={[
+                  { value: '', label: 'All Roles' },
+                  ...roles.map((r) => ({ value: r.id, label: r.name })),
+                ]}
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="h-9 text-xs sm:w-40 sm:text-sm"
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground sm:text-sm">
+              {filtered.length} of {applications.length} applicant{applications.length !== 1 ? 's' : ''}
+            </p>
+            {/* View toggle */}
+            <div className="inline-flex rounded-lg border border-border">
+              <button
+                type="button"
+                onClick={() => { setViewMode('card'); saveAppViewMode('card'); }}
+                className={`inline-flex items-center justify-center rounded-l-lg px-2.5 py-1.5 transition-colors ${viewMode === 'card' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                title="Card view"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => { setViewMode('list'); saveAppViewMode('list'); }}
+                className={`inline-flex items-center justify-center rounded-r-lg px-2.5 py-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+                title="List view"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
+                </svg>
+              </button>
             </div>
-            <Button onClick={() => setShowInvite(true)}>Invite Talent</Button>
           </div>
         </div>
 
-        {/* Filter */}
-        <div className="w-48">
-          <Select
-            id="statusFilter"
-            options={[{ value: '', label: 'All Statuses' }, ...STATUS_OPTIONS]}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          />
-        </div>
-
-        {/* Applications list */}
+        {/* Applicants */}
         {filtered.length === 0 ? (
-          <div className="rounded-xl border-2 border-dashed border-border p-12 text-center">
-            <p className="text-sm text-muted-foreground">No applications {statusFilter ? 'with this status' : 'yet'}.</p>
+          <div className="rounded-xl border-2 border-dashed border-border p-8 text-center sm:p-12">
+            <p className="text-sm text-muted-foreground">
+              No applications {statusFilter || roleFilter ? 'matching filters' : 'yet'}.
+            </p>
           </div>
-        ) : (
-          <div className="space-y-3">
+        ) : viewMode === 'card' ? (
+          /* ---- Card View ---- */
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-2.5 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
             {filtered.map((app) => {
-              const name = app.profiles?.display_name
-                || `${app.profiles?.first_name ?? ''} ${app.profiles?.last_name ?? ''}`.trim()
-                || 'Unknown';
+              const p = app.profiles;
+              const name = p?.display_name || `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim() || 'Unknown';
+              const initials = ((p?.first_name?.[0] ?? '') + (p?.last_name?.[0] ?? '')).toUpperCase() || name[0]?.toUpperCase() || '?';
+              const detailParts: string[] = [];
+              if (p?.gender) detailParts.push(p.gender);
+              if (p?.height_cm) detailParts.push(cmToFeetInches(p.height_cm));
+              if (p?.experience_level) detailParts.push(p.experience_level.replace('_', ' '));
 
               return (
-                <div key={app.id} className="rounded-xl border border-border bg-card p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Link href={`/admin/users/${app.user_id}`} className="font-semibold text-foreground hover:text-brand-secondary">
-                          {name}
-                        </Link>
-                        <Badge variant={statusVariants[app.status] ?? 'default'}>{app.status.replace('_', ' ')}</Badge>
-                      </div>
-                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        {app.casting_roles && <span>Role: {app.casting_roles.name}</span>}
-                        {app.profiles?.city && <span>{app.profiles.city}, {app.profiles.state}</span>}
-                        {app.profiles?.talent_type?.map((t) => (
-                          <Badge key={t} variant="secondary" className="text-[10px]">{talentTypeLabels[t] ?? t}</Badge>
-                        ))}
-                        <span>Applied {new Date(app.applied_at).toLocaleDateString()}</span>
-                      </div>
-                      {app.note && <p className="mt-1 text-xs text-muted-foreground italic">&quot;{app.note}&quot;</p>}
+                <div key={app.id} className="group relative overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+                  {/* Status badge */}
+                  <div className="absolute top-1 right-1 z-10">
+                    <Badge variant={appStatusVariants[app.status] ?? 'default'} className="px-1 py-0 text-[8px] shadow-sm">
+                      {app.status.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  {/* Photo */}
+                  <Link href={`/admin/castings/${castingId}/applications/${app.id}`}>
+                    <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
+                      {avatars[app.user_id] ? (
+                        <Image
+                          src={avatars[app.user_id]}
+                          alt={name}
+                          fill
+                          sizes="(max-width: 640px) 33vw, (max-width: 768px) 25vw, (max-width: 1024px) 20vw, 12.5vw"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-lg font-bold text-muted-foreground">
+                          {initials}
+                        </div>
+                      )}
                     </div>
-
-                    <div className="flex gap-2">
+                  </Link>
+                  {/* Info */}
+                  <div className="space-y-0.5 p-1.5">
+                    <Link href={`/admin/castings/${castingId}/applications/${app.id}`} className="block truncate text-[11px] font-semibold text-foreground hover:text-brand-secondary">
+                      {name}
+                    </Link>
+                    {app.casting_roles && (
+                      <p className="truncate text-[9px] font-medium text-brand-secondary">{app.casting_roles.name}</p>
+                    )}
+                    {(p?.city || p?.state) && (
+                      <p className="truncate text-[9px] text-muted-foreground">{[p.city, p.state].filter(Boolean).join(', ')}</p>
+                    )}
+                    {detailParts.length > 0 && (
+                      <p className="truncate text-[8px] capitalize text-muted-foreground">{detailParts.join(' · ')}</p>
+                    )}
+                    {p?.talent_type && p.talent_type.length > 0 && (
+                      <div className="flex flex-wrap gap-0.5">
+                        {p.talent_type.slice(0, 2).map((t) => (
+                          <Badge key={t} variant="secondary" className="px-1 py-0 text-[7px]">
+                            {talentTypeLabels[t] ?? t}
+                          </Badge>
+                        ))}
+                        {p.talent_type.length > 2 && (
+                          <Badge variant="outline" className="px-1 py-0 text-[7px]">+{p.talent_type.length - 2}</Badge>
+                        )}
+                      </div>
+                    )}
+                    <p className="text-[8px] text-muted-foreground">
+                      Applied {new Date(app.applied_at).toLocaleDateString()}
+                    </p>
+                    {/* Status control */}
+                    <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
                       <Select
-                        id={`status-${app.id}`}
-                        options={STATUS_OPTIONS}
+                        id={`cs-${app.id}`}
+                        options={APP_STATUS_OPTIONS}
                         value={app.status}
                         onChange={(e) => updateAppStatus(app.id, e.target.value)}
-                        className="w-36 text-xs"
+                        className="h-6 text-[9px]"
                       />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => { setSelectedApp(app); setAdminNotes(app.admin_notes ?? ''); }}
-                      >
-                        Notes
-                      </Button>
                     </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* ---- List View ---- */
+          <div className="space-y-1.5">
+            {filtered.map((app) => {
+              const p = app.profiles;
+              const name = p?.display_name || `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim() || 'Unknown';
+              const initials = ((p?.first_name?.[0] ?? '') + (p?.last_name?.[0] ?? '')).toUpperCase() || name[0]?.toUpperCase() || '?';
+              const detailParts: string[] = [];
+              if (p?.gender) detailParts.push(p.gender);
+              if (p?.height_cm) detailParts.push(cmToFeetInches(p.height_cm));
+              if (p?.experience_level) detailParts.push(p.experience_level.replace('_', ' '));
+
+              const roleOptions = [
+                { value: '', label: 'No Role' },
+                ...roles.map((r) => ({ value: r.id, label: r.name })),
+              ];
+
+              return (
+                <div key={app.id} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
+                  {/* Thumbnail */}
+                  <Link href={`/admin/castings/${castingId}/applications/${app.id}`} className="shrink-0">
+                    {avatars[app.user_id] ? (
+                      <Image src={avatars[app.user_id]} alt={name} width={44} height={44} className="h-11 w-11 rounded-lg object-cover" />
+                    ) : (
+                      <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-muted text-xs font-semibold text-muted-foreground">
+                        {initials}
+                      </span>
+                    )}
+                  </Link>
+                  {/* Details */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <Link href={`/admin/castings/${castingId}/applications/${app.id}`} className="truncate text-sm font-semibold text-foreground hover:text-brand-secondary">
+                        {name}
+                      </Link>
+                      <Badge variant={appStatusVariants[app.status] ?? 'default'} className="shrink-0 text-[10px]">
+                        {app.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      {app.casting_roles && <span className="font-medium text-brand-secondary">{app.casting_roles.name}</span>}
+                      {app.casting_roles && (p?.city || p?.state) && <span>·</span>}
+                      {(p?.city || p?.state) && <span className="truncate">{[p.city, p.state].filter(Boolean).join(', ')}</span>}
+                      {detailParts.length > 0 && <span>·</span>}
+                      {detailParts.length > 0 && <span className="truncate capitalize">{detailParts.join(' · ')}</span>}
+                    </div>
+                    {p?.talent_type && p.talent_type.length > 0 && (
+                      <div className="mt-0.5 flex flex-wrap gap-0.5">
+                        {p.talent_type.map((t) => (
+                          <Badge key={t} variant="secondary" className="px-1 py-0 text-[8px]">{talentTypeLabels[t] ?? t}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Actions */}
+                  <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                    <Select
+                      id={`ls-${app.id}`}
+                      options={APP_STATUS_OPTIONS}
+                      value={app.status}
+                      onChange={(e) => updateAppStatus(app.id, e.target.value)}
+                      className="h-7 w-32 text-[11px]"
+                    />
+                    {roles.length > 0 && (
+                      <Select
+                        id={`lr-${app.id}`}
+                        options={roleOptions}
+                        value={app.role_id ?? ''}
+                        onChange={(e) => updateAppRole(app.id, e.target.value)}
+                        className="h-7 w-28 text-[11px]"
+                      />
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-[11px]"
+                      onClick={() => { setSelectedApp(app); setAdminNotes(app.admin_notes ?? ''); }}
+                    >
+                      Notes
+                    </Button>
                   </div>
                 </div>
               );

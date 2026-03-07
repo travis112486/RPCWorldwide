@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { countWords, validateUrl } from '@/lib/validations/profile';
+import { checkUploadRateLimit } from '@/lib/utils/upload-rate-limit';
 import type { Profile } from '@/types/database';
 
 const MAX_WORDS = 500;
@@ -42,6 +43,8 @@ export function StepBioLinks({ profile, userId, onChange, errors, setErrors }: S
     setResumeUploading(true);
 
     try {
+      await checkUploadRateLimit();
+
       const path = `${userId}/resume-${Date.now()}.pdf`;
 
       // Remove old resume if exists

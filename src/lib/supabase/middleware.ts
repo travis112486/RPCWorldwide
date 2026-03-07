@@ -1,8 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { authPageLimiter, rateLimitResponse, getClientIp } from '@/lib/rate-limit';
 
 // Routes that don't require authentication
 const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/castings', '/about', '/contact', '/terms', '/privacy'];
+
+// Auth page routes that should be rate-limited at the middleware level
+const RATE_LIMITED_AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password'];
 
 // Routes that authenticated users should be redirected away from
 const AUTH_ROUTES = ['/login', '/register'];
@@ -21,6 +25,17 @@ function getDashboardRoute(role: string) {
 }
 
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+
+  // Rate-limit auth page loads (exclude /api/* to avoid double-counting with rate-check endpoint)
+  if (!pathname.startsWith('/api/') && RATE_LIMITED_AUTH_PAGES.includes(pathname)) {
+    const ip = getClientIp(request);
+    const result = authPageLimiter.check(ip);
+    if (!result.success) {
+      return rateLimitResponse(result.retryAfter);
+    }
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -46,8 +61,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const pathname = request.nextUrl.pathname;
 
   // If user is not authenticated
   if (!user) {

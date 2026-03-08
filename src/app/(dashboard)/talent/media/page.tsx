@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
+import { checkUploadRateLimit } from '@/lib/utils/upload-rate-limit';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils/cn';
 import type { Media, MediaCategory } from '@/types/database';
@@ -18,6 +19,27 @@ const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
 const MAX_PHOTOS = 20;
 const MAX_VIDEOS = 5;
+
+// portfolio bucket is private — generate signed URLs (1 h) for display.
+// avatars bucket is public — getPublicUrl works for primary headshots.
+async function enrichWithSignedUrls(
+  supabase: ReturnType<typeof createClient>,
+  items: Media[],
+): Promise<Media[]> {
+  const needsSigned = items.filter((m) => !m.is_primary && m.storage_path && !m.external_url);
+  if (!needsSigned.length) return items;
+  const { data: signed } = await supabase.storage
+    .from('portfolio')
+    .createSignedUrls(needsSigned.map((m) => m.storage_path), 3600);
+  const urlMap = new Map(
+    (signed ?? []).filter((s) => s.path != null).map((s) => [s.path as string, s.signedUrl]),
+  );
+  return items.map((m) =>
+    !m.is_primary && m.storage_path && !m.external_url
+      ? { ...m, url: urlMap.get(m.storage_path) ?? null }
+      : m,
+  );
+}
 
 const CATEGORY_OPTIONS: { value: MediaCategory; label: string }[] = [
   { value: 'headshot', label: 'Headshot' },
@@ -58,7 +80,7 @@ export default function MediaManagementPage() {
       .eq('user_id', user.id)
       .order('sort_order', { ascending: true });
 
-    setMedia((data as Media[]) ?? []);
+    setMedia(await enrichWithSignedUrls(supabase, (data as Media[]) ?? []));
     setLoading(false);
   }, [supabase, router]);
 
@@ -70,6 +92,15 @@ export default function MediaManagementPage() {
     const accepted = type === 'photo' ? ACCEPTED_IMAGE_TYPES : ACCEPTED_VIDEO_TYPES;
 
     setUploading(true);
+
+    try {
+      await checkUploadRateLimit();
+    } catch (err) {
+      setUploading(false);
+      alert((err as Error).message);
+      return;
+    }
+
     const newMedia: Media[] = [];
 
     for (const file of files) {
@@ -82,7 +113,9 @@ export default function MediaManagementPage() {
       const { error } = await supabase.storage.from(bucket).upload(path, file);
       if (error) continue;
 
-      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+      // portfolio is private — store path in DB, get a signed URL for immediate display
+      const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
+      const displayUrl = signed?.signedUrl ?? null;
 
       const { data: record } = await supabase
         .from('media')
@@ -91,7 +124,7 @@ export default function MediaManagementPage() {
           type,
           category: type === 'photo' ? 'lifestyle' : 'demo_reel',
           storage_path: path,
-          url: urlData.publicUrl,
+          url: null, // private bucket — signed URLs generated at display time
           file_name: file.name,
           file_size_bytes: file.size,
           mime_type: file.type,
@@ -101,7 +134,7 @@ export default function MediaManagementPage() {
         .select()
         .single();
 
-      if (record) newMedia.push(record as Media);
+      if (record) newMedia.push({ ...(record as Media), url: displayUrl });
     }
 
     if (newMedia.length > 0) {

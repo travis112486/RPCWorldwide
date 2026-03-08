@@ -46,6 +46,23 @@ export default function ResetPasswordPage() {
     setLoading(true);
     setErrors({});
 
+    // Check rate limit before attempting password update
+    try {
+      const rateRes = await fetch('/api/auth/rate-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset-password' }),
+      });
+      if (rateRes.status === 429) {
+        const { retryAfter } = await rateRes.json();
+        setLoading(false);
+        setErrors({ general: `Too many attempts. Please try again in ${retryAfter} seconds.` });
+        return;
+      }
+    } catch {
+      // If rate-check fails, proceed anyway (fail-open)
+    }
+
     const { error } = await supabase.auth.updateUser({ password });
 
     setLoading(false);

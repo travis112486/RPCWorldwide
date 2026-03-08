@@ -6,6 +6,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils/cn';
 import { createClient } from '@/lib/supabase/client';
 import type { Media } from '@/types/database';
+import { checkUploadRateLimit } from '@/lib/utils/upload-rate-limit';
 
 interface StepMediaProps {
   userId: string;
@@ -56,9 +57,17 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
       const { error } = await supabase.storage.from(bucket).upload(path, file);
       if (error) throw new Error(error.message);
 
-      const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+      // avatars is public (getPublicUrl works); portfolio is private (use signed URL)
+      let displayUrl: string | null = null;
+      if (bucket === 'avatars') {
+        const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(path);
+        displayUrl = urlData.publicUrl;
+      } else {
+        const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
+        displayUrl = signed?.signedUrl ?? null;
+      }
 
-      // Create media record
+      // Create media record — store null url for portfolio (signed at display time)
       const { data: mediaRecord, error: dbError } = await supabase
         .from('media')
         .insert({
@@ -66,7 +75,7 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
           type: file.type.startsWith('video/') ? 'video' : 'photo',
           category,
           storage_path: path,
-          url: urlData.publicUrl,
+          url: bucket === 'avatars' ? displayUrl : null,
           file_name: file.name,
           file_size_bytes: file.size,
           mime_type: file.type,
@@ -76,7 +85,8 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
         .single();
 
       if (dbError) throw new Error(dbError.message);
-      return mediaRecord as Media;
+      // For portfolio items, attach the signed URL for immediate wizard display
+      return { ...(mediaRecord as Media), url: displayUrl } as Media;
     },
     [supabase, userId],
   );
@@ -107,6 +117,8 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
     setUploads([{ fileName: file.name, progress: 50 }]);
 
     try {
+      await checkUploadRateLimit();
+
       // Remove old headshot if exists
       if (headshot) {
         await supabase.storage.from('avatars').remove([headshot.storage_path]);
@@ -140,6 +152,15 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
     setUploading(true);
     const uploadState: UploadProgress[] = files.map((f) => ({ fileName: f.name, progress: 0 }));
     setUploads(uploadState);
+
+    try {
+      await checkUploadRateLimit();
+    } catch (err) {
+      setUploads(files.map((f) => ({ fileName: f.name, progress: 0, error: (err as Error).message })));
+      setUploading(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+      return;
+    }
 
     const newMedia: Media[] = [];
 
@@ -191,6 +212,15 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
     setUploading(true);
     const uploadState: UploadProgress[] = files.map((f) => ({ fileName: f.name, progress: 0 }));
     setUploads(uploadState);
+
+    try {
+      await checkUploadRateLimit();
+    } catch (err) {
+      setUploads(files.map((f) => ({ fileName: f.name, progress: 0, error: (err as Error).message })));
+      setUploading(false);
+      if (videoInputRef.current) videoInputRef.current.value = '';
+      return;
+    }
 
     const newMedia: Media[] = [];
 

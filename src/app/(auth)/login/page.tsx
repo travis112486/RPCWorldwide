@@ -37,12 +37,48 @@ function LoginForm() {
     setLoading(true);
     setErrors({});
 
+    // Check rate limit before attempting login
+    try {
+      const rateRes = await fetch('/api/auth/rate-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login' }),
+      });
+      if (rateRes.status === 429) {
+        const { retryAfter } = await rateRes.json();
+        setLoading(false);
+        setErrors({ general: `Too many attempts. Please try again in ${retryAfter} seconds.` });
+        return;
+      }
+      const rateData = await rateRes.json();
+      if (rateData.delay > 0) {
+        setLoading(false);
+        setErrors({ general: `Too many failed attempts. Please wait ${rateData.delay} seconds before trying again.` });
+        return;
+      }
+    } catch {
+      // If rate-check fails, proceed with login anyway (fail-open)
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
+      // Report failure for progressive delay tracking
+      try {
+        await fetch('/api/auth/login-failure', { method: 'POST' });
+      } catch {
+        // Non-critical — proceed even if tracking fails
+      }
       setLoading(false);
       setErrors({ general: getAuthErrorMessage(error.message) });
       return;
+    }
+
+    // Reset failure tracker on successful login
+    try {
+      await fetch('/api/auth/login-failure', { method: 'DELETE' });
+    } catch {
+      // Non-critical
     }
 
     // Fetch role for redirect

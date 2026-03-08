@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, requireAdminUser } from '@/lib/supabase/auth-helpers';
+import { apiLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function GET(req: NextRequest) {
   const castingId = req.nextUrl.searchParams.get('casting_id');
@@ -7,23 +8,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing casting_id' }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const supabase = await createServerSupabaseClient();
+  const authResult = await requireAdminUser(supabase);
+  if (authResult.response) return authResult.response;
 
-  // Verify the user is authenticated and an admin
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-
-  if (profile?.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const rateResult = apiLimiter.check(authResult.data!.userId);
+  if (!rateResult.success) return rateLimitResponse(rateResult.retryAfter);
 
   // Fetch casting details, roles, and applications in parallel
   const [castingRes, rolesRes, appRes] = await Promise.all([

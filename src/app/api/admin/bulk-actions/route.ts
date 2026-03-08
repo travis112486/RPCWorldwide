@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient, requireAdminUser } from '@/lib/supabase/auth-helpers';
+import { apiLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
+  const supabase = await createServerSupabaseClient();
+  const authResult = await requireAdminUser(supabase);
+  if (authResult.response) return authResult.response;
+  const adminUserId = authResult.data!.userId;
 
-  // Auth + admin check
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const rateResult = apiLimiter.check(adminUserId);
+  if (!rateResult.success) return rateLimitResponse(rateResult.retryAfter);
 
   const body = await request.json();
   const { action, userIds } = body as { action: string; userIds: string[] };
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       const rows = userIds.map((uid) => ({
         user_id: uid,
         tag_name: tagName.trim(),
-        created_by: user.id,
+        created_by: adminUserId,
       }));
       const { error } = await supabase.from('user_tags').upsert(rows, { onConflict: 'user_id,tag_name', ignoreDuplicates: true });
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
         user_id: uid,
         message: message || null,
         status: 'pending' as const,
-        invited_by: user.id,
+        invited_by: adminUserId,
       }));
       const { error } = await supabase.from('casting_invitations').insert(rows);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });

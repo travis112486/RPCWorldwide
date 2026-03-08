@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { createServerSupabaseClient, requireAdminUser } from '@/lib/supabase/auth-helpers';
 import { apiLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
@@ -33,7 +34,10 @@ export async function POST(request: NextRequest) {
         created_by: adminUserId,
       }));
       const { error } = await supabase.from('user_tags').upsert(rows, { onConflict: 'user_id,tag_name', ignoreDuplicates: true });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        Sentry.captureException(new Error(error.message));
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
 
       return NextResponse.json({ success: true, count: userIds.length });
     }
@@ -50,7 +54,10 @@ export async function POST(request: NextRequest) {
         invited_by: adminUserId,
       }));
       const { error } = await supabase.from('casting_invitations').insert(rows);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        Sentry.captureException(new Error(error.message));
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
 
       return NextResponse.json({ success: true, count: userIds.length });
     }

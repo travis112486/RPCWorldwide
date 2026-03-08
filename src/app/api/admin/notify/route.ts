@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { createServerSupabaseClient, requireAdminUser, requireAuthenticatedUser, createServiceRoleClient } from '@/lib/supabase/auth-helpers';
 import { sendEmail } from '@/lib/email/send';
 import { applicationStatusEmail, castingInvitationEmail, invitationResponseEmail } from '@/lib/email/templates';
@@ -19,6 +20,7 @@ import { apiLimiter, rateLimitResponse } from '@/lib/rate-limit';
  * go through the session client with RLS enforced.
  */
 export async function POST(request: NextRequest) {
+  try {
   const supabase = await createServerSupabaseClient();
 
   const body = await request.json();
@@ -174,4 +176,8 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ error: `Unknown notification type: ${type}` }, { status: 400 });
+  } catch (error) {
+    Sentry.captureException(error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

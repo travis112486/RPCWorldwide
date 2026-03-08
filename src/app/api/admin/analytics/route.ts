@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { createServerSupabaseClient, requireAdminUser } from '@/lib/supabase/auth-helpers';
 import { apiLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
@@ -10,6 +11,7 @@ export async function GET() {
   const rateResult = apiLimiter.check(authResult.data!.userId);
   if (!rateResult.success) return rateLimitResponse(rateResult.retryAfter);
 
+  try {
   // All queries in parallel
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -86,4 +88,8 @@ export async function GET() {
     signupChart,
     topCastings,
   });
+  } catch (error) {
+    Sentry.captureException(error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

@@ -51,8 +51,6 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
       category: Media['category'],
       isPrimary: boolean,
     ): Promise<Media | null> => {
-      await checkUploadRateLimit();
-
       const ext = file.name.split('.').pop();
       const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
@@ -119,6 +117,8 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
     setUploads([{ fileName: file.name, progress: 50 }]);
 
     try {
+      await checkUploadRateLimit();
+
       // Remove old headshot if exists
       if (headshot) {
         await supabase.storage.from('avatars').remove([headshot.storage_path]);
@@ -152,6 +152,15 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
     setUploading(true);
     const uploadState: UploadProgress[] = files.map((f) => ({ fileName: f.name, progress: 0 }));
     setUploads(uploadState);
+
+    try {
+      await checkUploadRateLimit();
+    } catch (err) {
+      setUploads(files.map((f) => ({ fileName: f.name, progress: 0, error: (err as Error).message })));
+      setUploading(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+      return;
+    }
 
     const newMedia: Media[] = [];
 
@@ -203,6 +212,15 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
     setUploading(true);
     const uploadState: UploadProgress[] = files.map((f) => ({ fileName: f.name, progress: 0 }));
     setUploads(uploadState);
+
+    try {
+      await checkUploadRateLimit();
+    } catch (err) {
+      setUploads(files.map((f) => ({ fileName: f.name, progress: 0, error: (err as Error).message })));
+      setUploading(false);
+      if (videoInputRef.current) videoInputRef.current.value = '';
+      return;
+    }
 
     const newMedia: Media[] = [];
 

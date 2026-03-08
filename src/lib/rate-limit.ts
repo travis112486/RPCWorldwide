@@ -46,7 +46,7 @@ export function createRateLimiter(options: {
     if (entries.length >= limit) {
       // Find when the oldest entry in the window expires
       const oldestInWindow = entries[0].timestamp
-      const retryAfter = Math.ceil((oldestInWindow + windowMs - now) / 1000)
+      const retryAfter = Math.max(1, Math.ceil((oldestInWindow + windowMs - now) / 1000))
       store.set(key, entries)
       return { success: false, remaining: 0, retryAfter }
     }
@@ -102,7 +102,7 @@ export function createFailureTracker(): FailureTracker {
     current.lastFailure = now
     store.set(key, current)
 
-    const delay = current.count > 3 ? Math.pow(2, current.count - 4) : 0
+    const delay = current.count > 3 ? Math.min(Math.pow(2, current.count - 4), 300) : 0
     return { consecutiveFailures: current.count, delay }
   }
 
@@ -114,7 +114,7 @@ export function createFailureTracker(): FailureTracker {
       store.delete(key)
       return 0
     }
-    return entry.count > 3 ? Math.pow(2, entry.count - 4) : 0
+    return entry.count > 3 ? Math.min(Math.pow(2, entry.count - 4), 300) : 0
   }
 
   function reset(key: string): void {
@@ -165,11 +165,16 @@ export function rateLimitResponse(retryAfter: number): NextResponse {
 // IP extraction helper
 // ---------------------------------------------------------------------------
 
-/** Extracts client IP from request headers. Falls back to '127.0.0.1'. */
+/** Extracts client IP from request headers. Prefers x-real-ip (Vercel-trusted). */
 export function getClientIp(request: Request): string {
+  const realIp = request.headers.get('x-real-ip')
+  if (realIp) return realIp
+
   const forwarded = request.headers.get('x-forwarded-for')
   if (forwarded) {
-    return forwarded.split(',')[0].trim()
+    const parts = forwarded.split(',')
+    return parts[parts.length - 1].trim()
   }
-  return request.headers.get('x-real-ip') ?? '127.0.0.1'
+
+  return '127.0.0.1'
 }

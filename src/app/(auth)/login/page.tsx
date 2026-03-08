@@ -74,6 +74,13 @@ function LoginForm() {
       return;
     }
 
+    // Reset failure tracker on successful login
+    try {
+      await fetch('/api/auth/login-failure', { method: 'DELETE' });
+    } catch {
+      // Non-critical
+    }
+
     // Fetch role for redirect
     const {
       data: { user },

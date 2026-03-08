@@ -4,8 +4,13 @@ import { authCheckLimiter, loginFailureTracker, rateLimitResponse, getClientIp }
 const VALID_ACTIONS = ['login', 'register', 'forgot-password', 'reset-password'] as const
 
 export async function POST(request: NextRequest) {
-  const body = await request.json()
-  const { action } = body as { action: string }
+  let body: { action?: string }
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+  const { action } = body
 
   if (!action || !VALID_ACTIONS.includes(action as (typeof VALID_ACTIONS)[number])) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 })

@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server'
 import { createServerSupabaseClient, requireAuthenticatedUser } from '@/lib/supabase/auth-helpers'
 import { uploadLimiter, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -13,5 +14,5 @@ export async function POST() {
     return rateLimitResponse(rateResult.retryAfter)
   }
 
-  return Response.json({ allowed: true, remaining: rateResult.remaining })
+  return NextResponse.json({ allowed: true, remaining: rateResult.remaining })
 }

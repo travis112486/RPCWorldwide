@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { createServerSupabaseClient, requireAdminUser } from '@/lib/supabase/auth-helpers';
 import { apiLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   ]);
 
   if (appRes.error) {
-    console.error('[Admin Applications API] Query error:', appRes.error);
+    Sentry.captureException(new Error(appRes.error.message));
     return NextResponse.json({ error: appRes.error.message, detail: appRes.error }, { status: 500 });
   }
 

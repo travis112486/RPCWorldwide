@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
 import { authPageLimiter, rateLimitResponse, getClientIp } from '@/lib/rate-limit';
 
 // Routes that don't require authentication
@@ -61,6 +62,13 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Set Sentry user context (no redundant getUser call — reuses result above)
+  if (user) {
+    Sentry.setUser({ id: user.id });
+  } else {
+    Sentry.setUser(null);
+  }
 
   // If user is not authenticated
   if (!user) {

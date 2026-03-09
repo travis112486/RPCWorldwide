@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, requireAuthenticatedUser, createServiceRoleClient } from '@/lib/supabase/auth-helpers'
 import {
   getBucketRule,
-  inferPortfolioCategory,
   validateMimeFromBytes,
   validateImageContent,
   validatePdfContent,

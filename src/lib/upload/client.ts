@@ -9,7 +9,8 @@ interface UploadParams {
   file: File
   bucket: string
   category?: string // 'headshot' | 'lifestyle' | 'demo_reel' | 'resume'
-  userId: string
+  /** @deprecated Server determines user from auth cookies. Kept for caller convenience but unused. */
+  userId?: string
   onProgress?: (pct: number) => void
 }
 

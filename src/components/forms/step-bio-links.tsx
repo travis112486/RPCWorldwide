@@ -62,8 +62,8 @@ export function StepBioLinks({ profile, userId, onChange, errors, setErrors }: S
 
       if (result.error || !result.path) throw new Error(result.error ?? 'Upload failed');
 
-      const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(result.path);
-      onChange({ resume_url: urlData.publicUrl });
+      // Store storage path as stable key (resumes bucket is private — signed URLs generated at display time)
+      onChange({ resume_url: `resumes/${result.path}` });
     } catch (err) {
       setErrors({ ...errors, resume: (err as Error).message });
     } finally {

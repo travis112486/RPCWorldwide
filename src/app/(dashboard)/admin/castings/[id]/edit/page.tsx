@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { logAuditEvent } from '@/lib/audit-log';
 import { DashboardLayout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,6 +72,7 @@ export default function EditCastingPage() {
   const [roles, setRoles] = useState<RoleInput[]>([{ name: '', description: '' }]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const originalValues = useRef<Record<string, unknown>>({});
 
   const router = useRouter();
   const supabase = createClient();
@@ -108,6 +110,12 @@ export default function EditCastingPage() {
       description: r.description ?? '',
     }));
     setRoles(existingRoles.length > 0 ? existingRoles : [{ name: '', description: '' }]);
+    originalValues.current = {
+      title: c.title,
+      status: c.status,
+      visibility: c.visibility,
+      project_type: c.project_type,
+    };
     setLoading(false);
   }, [supabase, router, castingId]);
 
@@ -182,6 +190,14 @@ export default function EditCastingPage() {
         })),
       );
     }
+
+    await logAuditEvent(supabase, {
+      action: 'casting.update',
+      entityType: 'casting_call',
+      entityId: castingId,
+      oldValue: originalValues.current,
+      newValue: { title: title.trim(), status, visibility, project_type: projectType },
+    });
 
     toast('Casting updated successfully.', 'success');
     router.push('/admin/castings');

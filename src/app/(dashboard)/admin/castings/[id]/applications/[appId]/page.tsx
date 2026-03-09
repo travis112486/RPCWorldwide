@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import { logAuditEvent } from '@/lib/audit-log';
 import { DashboardLayout } from '@/components/layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -133,6 +134,7 @@ export default function ApplicantDetailPage() {
 
   async function updateStatus(newStatus: string) {
     if (!app) return;
+    const oldStatus = app.status;
     await supabase.from('applications').update({
       status: newStatus,
       reviewed_at: new Date().toISOString(),
@@ -141,6 +143,14 @@ export default function ApplicantDetailPage() {
     setApplications((prev) =>
       prev.map((a) => a.id === app.id ? { ...a, status: newStatus } : a),
     );
+
+    await logAuditEvent(supabase, {
+      action: 'application.status_change',
+      entityType: 'application',
+      entityId: app.id,
+      oldValue: { status: oldStatus },
+      newValue: { status: newStatus },
+    });
   }
 
   async function updateRole(newRoleId: string) {

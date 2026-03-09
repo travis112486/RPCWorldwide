@@ -1,6 +1,8 @@
 /**
  * Verify the handle_new_user trigger works:
- * Sign up a test user and check that profiles + notification_preferences rows are created.
+ * Sign up a test user and check that a profiles row is auto-created.
+ * Note: notification_preferences is NOT a separate table — preferences are stored
+ *       as columns on the profiles table (notify_casting_invites, notify_application_updates).
  * Run with: node scripts/verify-trigger.mjs
  */
 import { createClient } from '@supabase/supabase-js';
@@ -22,19 +24,6 @@ async function main() {
     .select('id', { count: 'exact', head: true });
   console.log(`Profiles table accessible: ${!tablesErr} (count query)`);
   if (tablesErr) console.log('  Error:', tablesErr.message);
-
-  // Check notification_preferences via direct fetch (bypass schema cache)
-  const resp = await fetch(`${supabaseUrl}/rest/v1/notification_preferences?select=user_id&limit=0`, {
-    headers: {
-      'apikey': serviceRoleKey,
-      'Authorization': `Bearer ${serviceRoleKey}`,
-    },
-  });
-  console.log(`notification_preferences table accessible: ${resp.ok} (status: ${resp.status})`);
-  if (!resp.ok) {
-    const body = await resp.json();
-    console.log('  Error:', body.message || JSON.stringify(body));
-  }
 
   // Create a test user via admin API
   const { data: userData, error: signupError } = await supabase.auth.admin.createUser({
@@ -70,33 +59,23 @@ async function main() {
     console.log(`✓ Profile auto-created: ${profile.first_name} ${profile.last_name} (role: ${profile.role})`);
   }
 
-  // Check notification_preferences via direct fetch
-  const prefsResp = await fetch(
-    `${supabaseUrl}/rest/v1/notification_preferences?user_id=eq.${userId}&select=user_id,casting_invites,application_updates`,
-    {
-      headers: {
-        'apikey': serviceRoleKey,
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
-    }
-  );
-  let prefs = null;
-  if (prefsResp.ok) {
-    const prefsData = await prefsResp.json();
-    prefs = prefsData[0] || null;
-  }
+  // Check notification preference columns (stored on profiles, not a separate table)
+  const { data: prefProfile } = await supabase
+    .from('profiles')
+    .select('notify_casting_invites, notify_application_updates, notify_marketing')
+    .eq('id', userId)
+    .maybeSingle();
 
-  if (!prefs) {
-    console.error('✗ Notification preferences NOT auto-created by trigger');
-    if (!prefsResp.ok) {
-      const body = await prefsResp.text();
-      console.error('  Response:', body);
-    }
+  if (!prefProfile) {
+    console.error('✗ Could not read notification preference columns from profiles');
   } else {
-    console.log(`✓ Notification preferences auto-created (casting_invites: ${prefs.casting_invites}, application_updates: ${prefs.application_updates})`);
+    console.log(
+      `✓ Notification prefs on profile: casting_invites=${prefProfile.notify_casting_invites}, ` +
+      `application_updates=${prefProfile.notify_application_updates}`
+    );
   }
 
-  // Clean up: delete the test user (cascades to profile + prefs)
+  // Clean up: delete the test user (cascades to profile)
   const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
   if (deleteError) {
     console.error('⚠ Could not delete test user:', deleteError.message);
@@ -104,7 +83,7 @@ async function main() {
     console.log(`\n🧹 Cleaned up test user`);
   }
 
-  if (profile && prefs) {
+  if (profile && prefProfile) {
     console.log('\n✅ handle_new_user trigger is working correctly!');
   } else {
     console.log('\n⚠️  Trigger verification had issues. See output above.');

@@ -71,7 +71,8 @@ async function verifyDatabase() {
     'profiles', 'profile_ethnicities', 'profile_skills', 'profile_languages',
     'profile_unions', 'media', 'casting_calls', 'casting_roles',
     'casting_attachments', 'applications', 'casting_invitations',
-    'user_tags', 'saved_searches', 'notification_preferences',
+    // notification_preferences was removed — preferences are stored on the profiles table.
+    'user_tags', 'saved_searches',
   ];
 
   let allGood = true;
@@ -97,7 +98,7 @@ async function main() {
   const dbOk = await verifyDatabase();
 
   if (dbOk) {
-    console.log('\n✅ All 14 tables verified. Database is ready!');
+    console.log('\n✅ All 13 tables verified. Database is ready!');
   } else {
     console.log('\n⚠️  Some tables had issues. Check the output above.');
   }

@@ -71,6 +71,68 @@ Copy `.env.local.example` to `.env.local` and fill in Supabase credentials.
 - Run `npm run build` after significant changes to verify compilation
 - Keep `src/types/database.ts` in sync with any Supabase schema changes
 
+## Codebase Context Policy
+
+This repository uses Auggie MCP as the primary context engine.
+
+Agents MUST follow this rule:
+
+1. Always use the Auggie MCP tool (`codebase-retrieval`) to search the repository before reading files manually.
+2. Do NOT recursively read large portions of the repo.
+3. Use Auggie queries to locate:
+   - relevant files
+   - architecture explanations
+   - implementation patterns
+4. Only open files after Auggie identifies them as relevant.
+
+Reason:
+The repo is indexed by Auggie. Direct file exploration wastes tokens and increases hallucination risk.
+
+Workflow agents must follow:
+
+Step 1 — Query Auggie
+Step 2 — Identify relevant files
+Step 3 — Open only those files
+Step 4 — Implement changes
+
+Example query:
+
+"Use codebase-retrieval to find how casting applications are implemented."
+
+Failure to follow this rule may result in incomplete context.
+
+This rule applies to:
+- coding agents
+- QA agents
+- refactor agents
+- planning agents
+
+## Ticket Development Workflow
+
+All tickets must follow this pipeline:
+
+1. `/plan-ticket <issue>` — Create an implementation plan using the planner agent
+2. `/validate-plan <issue>` — Validate the plan against repository architecture
+3. `/ticket-implementation <issue>` — Execute the implementation
+4. `/pr-qa <issue>` — Run QA review before completion
+
+Rules:
+
+- All repository exploration must use Auggie MCP (`codebase-retrieval`).
+- Agents must NOT scan the entire repository manually.
+- Only open files identified by Auggie context queries.
+
+## Skills
+
+Available skills in `.claude/skills/`:
+
+- **ticket-implementation** — Executes tickets end-to-end using Auggie MCP, architecture planning, implementation, and QA review. Agents should use this skill whenever implementing a feature or ticket.
+- **pr-qa** — Structured QA pass: build, lint, security, conventions, signed URL checks.
+- **architect** — Architecture analysis, module maps, data flows, design recommendations.
+- **migration** — Supabase schema changes with RLS policies and TypeScript type sync.
+- **refactor** — Behavior-preserving code cleanup with build/lint verification.
+- **explore** — Read-only codebase exploration, flow tracing, and feature explanations.
+
 ## Allowed Operations
 - Read, write, and edit any files under `src/`, `supabase/`, `scripts/`, `docs/`, `public/`
 - Run `npm run dev`, `npm run build`, `npm run lint`

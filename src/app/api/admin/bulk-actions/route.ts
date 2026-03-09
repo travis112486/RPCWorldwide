@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { createServerSupabaseClient, requireAdminUser } from '@/lib/supabase/auth-helpers';
-import { apiLimiter, rateLimitResponse } from '@/lib/rate-limit';
+import { apiLimiter, rateLimitResponse, getClientIp } from '@/lib/rate-limit';
+import { logAuditEvent } from '@/lib/audit-log';
 
 export async function POST(request: NextRequest) {
   const supabase = await createServerSupabaseClient();
@@ -39,6 +40,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
+      await logAuditEvent(supabase, {
+        action: 'bulk.tag',
+        entityType: 'user',
+        entityId: 'batch',
+        newValue: { userIds, tagName: tagName.trim() },
+        ipAddress: getClientIp(request),
+      });
+
       return NextResponse.json({ success: true, count: userIds.length });
     }
 
@@ -58,6 +67,14 @@ export async function POST(request: NextRequest) {
         Sentry.captureException(new Error(error.message));
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
+
+      await logAuditEvent(supabase, {
+        action: 'bulk.invite',
+        entityType: 'casting_call',
+        entityId: castingCallId,
+        newValue: { userIds, message: message || null },
+        ipAddress: getClientIp(request),
+      });
 
       return NextResponse.json({ success: true, count: userIds.length });
     }

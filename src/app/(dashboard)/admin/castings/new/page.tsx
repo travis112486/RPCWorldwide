@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { logAuditEvent } from '@/lib/audit-log';
 import { DashboardLayout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -139,6 +140,15 @@ export default function NewCastingPage() {
           sort_order: i,
         })),
       );
+    }
+
+    if (casting) {
+      await logAuditEvent(supabase, {
+        action: 'casting.create',
+        entityType: 'casting_call',
+        entityId: casting.id,
+        newValue: { title: title.trim(), status },
+      });
     }
 
     toast('Casting created successfully.', 'success');

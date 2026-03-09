@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Badge } from '@/components/ui/badge';
+import { logAuditEvent } from '@/lib/audit-log';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
@@ -43,20 +43,46 @@ export function AdminUserActions({ userId, currentStatus, initialTags }: Props) 
     setTags([...tags, { id: data.id, tag_name: data.tag_name }]);
     setNewTag('');
     toast(`Tag "${data.tag_name}" added`, 'success');
+    await logAuditEvent(supabase, {
+      action: 'tag.add',
+      entityType: 'user',
+      entityId: userId,
+      newValue: { tag: data.tag_name },
+    });
   }
 
   async function removeTag(tagId: string, tagName: string) {
     await supabase.from('user_tags').delete().eq('id', tagId);
     setTags(tags.filter((t) => t.id !== tagId));
     toast(`Tag "${tagName}" removed`, 'success');
+    await logAuditEvent(supabase, {
+      action: 'tag.remove',
+      entityType: 'user',
+      entityId: userId,
+      oldValue: { tag: tagName },
+    });
   }
 
   async function updateStatus(newStatus: string) {
+    const oldStatus = status;
     await supabase.from('profiles').update({ status: newStatus }).eq('id', userId);
     setStatus(newStatus);
     setShowConfirm(null);
     toast(`User status updated to ${newStatus}`, 'success');
     router.refresh();
+
+    const actionMap: Record<string, 'user.suspend' | 'user.deactivate' | 'user.reactivate'> = {
+      suspended: 'user.suspend',
+      deactivated: 'user.deactivate',
+      active: 'user.reactivate',
+    };
+    await logAuditEvent(supabase, {
+      action: actionMap[newStatus] ?? 'user.reactivate',
+      entityType: 'user',
+      entityId: userId,
+      oldValue: { status: oldStatus },
+      newValue: { status: newStatus },
+    });
   }
 
   return (

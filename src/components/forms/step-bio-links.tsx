@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
+import { uploadFileSecure } from '@/lib/upload/client';
 import { countWords, validateUrl } from '@/lib/validations/profile';
 import { checkUploadRateLimit } from '@/lib/utils/upload-rate-limit';
 import type { Profile } from '@/types/database';
@@ -45,18 +46,23 @@ export function StepBioLinks({ profile, userId, onChange, errors, setErrors }: S
     try {
       await checkUploadRateLimit();
 
-      const path = `${userId}/resume-${Date.now()}.pdf`;
-
       // Remove old resume if exists
       if (profile.resume_url) {
         const oldPath = profile.resume_url.split('/').slice(-2).join('/');
-        await supabase.storage.from('portfolio').remove([oldPath]);
+        await supabase.storage.from('resumes').remove([oldPath]);
       }
 
-      const { error } = await supabase.storage.from('portfolio').upload(path, file);
-      if (error) throw new Error(error.message);
+      // Secure two-phase upload to the resumes bucket (fixes previous portfolio bucket bug)
+      const result = await uploadFileSecure({
+        file,
+        bucket: 'resumes',
+        category: 'resume',
+        userId,
+      });
 
-      const { data: urlData } = supabase.storage.from('portfolio').getPublicUrl(path);
+      if (result.error || !result.path) throw new Error(result.error ?? 'Upload failed');
+
+      const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(result.path);
       onChange({ resume_url: urlData.publicUrl });
     } catch (err) {
       setErrors({ ...errors, resume: (err as Error).message });

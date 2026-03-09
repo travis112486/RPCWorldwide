@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils/cn';
 import { createClient } from '@/lib/supabase/client';
+import { uploadFileSecure } from '@/lib/upload/client';
 import type { Media } from '@/types/database';
 import { checkUploadRateLimit } from '@/lib/utils/upload-rate-limit';
 
@@ -50,12 +51,19 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
       bucket: string,
       category: Media['category'],
       isPrimary: boolean,
+      onProgress?: (pct: number) => void,
     ): Promise<Media | null> => {
-      const ext = file.name.split('.').pop();
-      const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      // Secure two-phase upload: prepare → upload → validate
+      const result = await uploadFileSecure({
+        file,
+        bucket,
+        category: category ?? undefined,
+        userId,
+        onProgress,
+      });
 
-      const { error } = await supabase.storage.from(bucket).upload(path, file);
-      if (error) throw new Error(error.message);
+      if (result.error || !result.path) throw new Error(result.error ?? 'Upload failed');
+      const path = result.path;
 
       // avatars is public (getPublicUrl works); portfolio is private (use signed URL)
       let displayUrl: string | null = null;
@@ -114,7 +122,7 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
 
     setErrors({ ...errors, headshot: '' });
     setUploading(true);
-    setUploads([{ fileName: file.name, progress: 50 }]);
+    setUploads([{ fileName: file.name, progress: 5 }]);
 
     try {
       await checkUploadRateLimit();
@@ -125,7 +133,9 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
         await supabase.from('media').delete().eq('id', headshot.id);
       }
 
-      const record = await uploadFile(file, 'avatars', 'headshot', true);
+      const record = await uploadFile(file, 'avatars', 'headshot', true, (pct) => {
+        setUploads([{ fileName: file.name, progress: pct }]);
+      });
       if (record) {
         onMediaChange([...media.filter((m) => !(m.is_primary && m.type === 'photo')), record]);
       }
@@ -178,10 +188,10 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
       }
 
       try {
-        uploadState[i] = { ...uploadState[i], progress: 50 };
-        setUploads([...uploadState]);
-
-        const record = await uploadFile(file, 'portfolio', 'lifestyle', false);
+        const record = await uploadFile(file, 'portfolio', 'lifestyle', false, (pct) => {
+          uploadState[i] = { ...uploadState[i], progress: pct };
+          setUploads([...uploadState]);
+        });
         if (record) newMedia.push(record);
 
         uploadState[i] = { ...uploadState[i], progress: 100 };
@@ -238,10 +248,10 @@ export function StepMedia({ userId, media, onMediaChange, errors, setErrors }: S
       }
 
       try {
-        uploadState[i] = { ...uploadState[i], progress: 50 };
-        setUploads([...uploadState]);
-
-        const record = await uploadFile(file, 'portfolio', 'demo_reel', false);
+        const record = await uploadFile(file, 'portfolio', 'demo_reel', false, (pct) => {
+          uploadState[i] = { ...uploadState[i], progress: pct };
+          setUploads([...uploadState]);
+        });
         if (record) newMedia.push(record);
 
         uploadState[i] = { ...uploadState[i], progress: 100 };

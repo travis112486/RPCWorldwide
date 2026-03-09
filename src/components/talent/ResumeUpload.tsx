@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { uploadFileSecure } from '@/lib/upload/client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { checkUploadRateLimit } from '@/lib/utils/upload-rate-limit';
@@ -64,9 +65,6 @@ export function ResumeUpload({ userId, currentResumePath, onUpdate }: ResumeUplo
       return;
     }
 
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'pdf';
-    const storagePath = `${userId}/resume.${ext}`;
-
     setUploading(true);
 
     try {
@@ -77,19 +75,22 @@ export function ResumeUpload({ userId, currentResumePath, onUpdate }: ResumeUplo
       return;
     }
 
-    // upsert=true overwrites any existing file at the same path
-    const { error } = await supabase.storage
-      .from('resumes')
-      .upload(storagePath, file, { upsert: true, contentType: file.type });
+    // Secure two-phase upload: prepare → upload → validate
+    const result = await uploadFileSecure({
+      file,
+      bucket: 'resumes',
+      category: 'resume',
+      userId,
+    });
 
-    if (error) {
+    if (result.error) {
       setUploading(false);
-      toast(`Upload failed: ${error.message}`, 'error');
+      toast(`Upload failed: ${result.error}`, 'error');
       return;
     }
 
     // Persist the storage path on the profile
-    const fullPath = `resumes/${storagePath}`;
+    const fullPath = `resumes/${result.path}`;
     const { error: profileError } = await supabase
       .from('profiles')
       .update({ resume_url: fullPath })

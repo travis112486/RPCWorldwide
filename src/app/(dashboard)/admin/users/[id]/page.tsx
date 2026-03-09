@@ -51,7 +51,27 @@ export default async function AdminUserDetailPage({ params }: Props) {
   const skills = skillRes.data?.map((s) => s.skill_name) ?? [];
   const languages = langRes.data?.map((l) => l.language) ?? [];
   const unions = unionRes.data?.map((u) => u.union_name) ?? [];
-  const media = mediaRes.data ?? [];
+
+  // portfolio bucket is private — generate signed URLs for non-primary media
+  const portfolioPaths = (mediaRes.data ?? [])
+    .filter((m) => !m.is_primary && m.storage_path && !m.external_url)
+    .map((m) => m.storage_path as string);
+
+  let signedUrlMap = new Map<string, string>();
+  if (portfolioPaths.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from('portfolio')
+      .createSignedUrls(portfolioPaths, 3600);
+    signedUrlMap = new Map(
+      (signed ?? []).filter((s) => s.path != null).map((s) => [s.path as string, s.signedUrl]),
+    );
+  }
+
+  const media = (mediaRes.data ?? []).map((m) =>
+    !m.is_primary && m.storage_path && !m.external_url
+      ? { ...m, url: signedUrlMap.get(m.storage_path) ?? m.url }
+      : m,
+  );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const applications = (appRes.data ?? []) as any[];
   const tags = (tagRes.data ?? []) as { id: string; tag_name: string }[];

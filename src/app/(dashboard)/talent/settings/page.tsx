@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { validatePassword } from '@/lib/validations/auth';
+import { ResumeUpload } from '@/components/talent/ResumeUpload';
 
 export default function TalentSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -34,6 +35,10 @@ export default function TalentSettingsPage() {
   const [notifyMarketing, setNotifyMarketing] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
 
+  // Resume
+  const [userId, setUserId] = useState<string | null>(null);
+  const [resumePath, setResumePath] = useState<string | null>(null);
+
   // Deactivate
   const [showDeactivate, setShowDeactivate] = useState(false);
   const [deactivateConfirm, setDeactivateConfirm] = useState('');
@@ -48,10 +53,11 @@ export default function TalentSettingsPage() {
     if (!user) { router.push('/login'); return; }
 
     setEmail(user.email ?? '');
+    setUserId(user.id);
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('notify_casting_invites, notify_application_updates, notify_marketing')
+      .select('notify_casting_invites, notify_application_updates, notify_marketing, resume_url')
       .eq('id', user.id)
       .single();
 
@@ -59,6 +65,7 @@ export default function TalentSettingsPage() {
       setNotifyCastingInvites(profile.notify_casting_invites ?? true);
       setNotifyApplicationUpdates(profile.notify_application_updates ?? true);
       setNotifyMarketing(profile.notify_marketing ?? false);
+      setResumePath(profile.resume_url ?? null);
     }
 
     setLoading(false);
@@ -257,6 +264,23 @@ export default function TalentSettingsPage() {
             </Button>
           </div>
         </section>
+
+        {/* Resume */}
+        {userId && (
+          <section className="rounded-xl border border-border bg-card p-6">
+            <h2 className="text-lg font-semibold text-foreground">Resume</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Upload a PDF or Word document. Visible to admins when reviewing your applications.
+            </p>
+            <div className="mt-4">
+              <ResumeUpload
+                userId={userId}
+                currentResumePath={resumePath}
+                onUpdate={setResumePath}
+              />
+            </div>
+          </section>
+        )}
 
         {/* Deactivate Account */}
         <section className="rounded-xl border border-destructive/30 bg-card p-6">

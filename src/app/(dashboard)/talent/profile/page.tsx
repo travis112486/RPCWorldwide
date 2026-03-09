@@ -32,7 +32,27 @@ export default async function TalentProfilePage() {
   const unions = unionRes.data?.map((u) => u.union_name) ?? [];
   const skills = skillRes.data?.map((s) => s.skill_name) ?? [];
   const languages = langRes.data?.map((l) => l.language) ?? [];
-  const media = mediaRes.data ?? [];
+
+  // portfolio bucket is private — generate signed URLs for non-primary media
+  const portfolioPaths = (mediaRes.data ?? [])
+    .filter((m) => !m.is_primary && m.storage_path && !m.external_url)
+    .map((m) => m.storage_path as string);
+
+  let signedUrlMap = new Map<string, string>();
+  if (portfolioPaths.length > 0) {
+    const { data: signed } = await supabase.storage
+      .from('portfolio')
+      .createSignedUrls(portfolioPaths, 3600);
+    signedUrlMap = new Map(
+      (signed ?? []).filter((s) => s.path != null).map((s) => [s.path as string, s.signedUrl]),
+    );
+  }
+
+  const media = (mediaRes.data ?? []).map((m) =>
+    !m.is_primary && m.storage_path && !m.external_url
+      ? { ...m, url: signedUrlMap.get(m.storage_path) ?? m.url }
+      : m,
+  );
 
   const headshot = media.find((m: { is_primary: boolean; type: string }) => m.is_primary && m.type === 'photo');
   const photos = media.filter((m: { is_primary: boolean; type: string }) => !m.is_primary && m.type === 'photo');

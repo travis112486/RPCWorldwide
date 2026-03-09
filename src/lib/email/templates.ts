@@ -1,7 +1,12 @@
 // Email templates for transactional notifications
 // These return plain HTML strings for email body content
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://rpcworldwide.com';
+// NEXT_PUBLIC_APP_URL must be set in every deployment environment:
+//   Local dev   → http://localhost:3000
+//   Vercel preview/prod → your Vercel deployment URL (e.g. https://rpcworldwide.vercel.app)
+// Email links will be broken if this is left as localhost.
+// The fallback is intentionally empty so broken config surfaces at send-time, not silently.
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? '';
 
 function layout(content: string, unsubscribeUrl: string) {
   return `<!DOCTYPE html>

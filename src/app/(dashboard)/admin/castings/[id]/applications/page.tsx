@@ -16,6 +16,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import type { ApplicationRow, CastingRoleRow } from '@/components/admin/applicant-card';
+import { ShortlistTab } from '@/components/admin/shortlist-tab';
 
 interface CastingDetail {
   title: string;
@@ -117,6 +118,7 @@ export default function AdminCastingApplicationsPage() {
   const [roleFilter, setRoleFilter] = useState('');
   const [showDescription, setShowDescription] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(loadAppViewMode);
+  const [activeTab, setActiveTab] = useState<'all' | 'shortlisted'>('all');
 
   // Notes modal
   const [selectedApp, setSelectedApp] = useState<ApplicationRow | null>(null);
@@ -171,13 +173,23 @@ export default function AdminCastingApplicationsPage() {
   useEffect(() => { loadData(); }, [loadData]);
 
   async function updateAppStatus(appId: string, newStatus: string) {
-    await supabase.from('applications').update({
+    const updatePayload: Record<string, unknown> = {
       status: newStatus,
       reviewed_at: new Date().toISOString(),
-    }).eq('id', appId);
+    };
+    // Clear shortlist_rank when moving away from shortlisted
+    if (newStatus !== 'shortlisted') {
+      updatePayload.shortlist_rank = null;
+    }
+
+    await supabase.from('applications').update(updatePayload).eq('id', appId);
 
     setApplications((prev) =>
-      prev.map((a) => a.id === appId ? { ...a, status: newStatus } : a),
+      prev.map((a) => a.id === appId ? {
+        ...a,
+        status: newStatus,
+        shortlist_rank: newStatus !== 'shortlisted' ? null : a.shortlist_rank,
+      } : a),
     );
   }
 
@@ -251,6 +263,41 @@ export default function AdminCastingApplicationsPage() {
     setInviteMessage('');
     toast('Invitation sent.', 'success');
   }
+
+  async function handleBulkStatusChange(ids: string[], newStatus: string) {
+    const res = await fetch('/api/admin/bulk-actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'bulk_status_update',
+        applicationIds: ids,
+        newStatus,
+        castingCallId: castingId,
+      }),
+    });
+    if (!res.ok) {
+      const json = await res.json();
+      throw new Error(json.error ?? 'Bulk action failed');
+    }
+    // Update local state
+    setApplications((prev) =>
+      prev.map((a) => ids.includes(a.id) ? {
+        ...a,
+        status: newStatus,
+        shortlist_rank: newStatus !== 'shortlisted' ? null : a.shortlist_rank,
+      } : a),
+    );
+    toast(`${ids.length} application${ids.length > 1 ? 's' : ''} updated to ${newStatus}`, 'success');
+  }
+
+  function handleShortlistChanged(updated: ApplicationRow[]) {
+    setApplications((prev) => {
+      const updatedMap = new Map(updated.map((a) => [a.id, a]));
+      return prev.map((a) => updatedMap.get(a.id) ?? a);
+    });
+  }
+
+  const shortlistedCount = applications.filter((a) => a.status === 'shortlisted').length;
 
   const filtered = applications
     .filter((a) => !statusFilter || a.status === statusFilter)
@@ -372,6 +419,39 @@ export default function AdminCastingApplicationsPage() {
           </Card>
         )}
 
+        {/* Tab navigation */}
+        <div className="flex border-b border-border">
+          <button
+            type="button"
+            onClick={() => setActiveTab('all')}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'all' ? 'border-b-2 border-brand-secondary text-brand-secondary' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            All Applications
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('shortlisted')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'shortlisted' ? 'border-b-2 border-brand-secondary text-brand-secondary' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Shortlisted
+            {shortlistedCount > 0 && (
+              <span className={`inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${activeTab === 'shortlisted' ? 'bg-brand-secondary text-white' : 'bg-muted text-muted-foreground'}`}>
+                {shortlistedCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === 'shortlisted' ? (
+          <ShortlistTab
+            applications={applications.filter((a) => a.status === 'shortlisted')}
+            avatars={avatars}
+            castingId={castingId}
+            onApplicationsChanged={handleShortlistChanged}
+            onBulkStatusChange={handleBulkStatusChange}
+          />
+        ) : (
+        <>
         {/* Toolbar */}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
@@ -599,6 +679,9 @@ export default function AdminCastingApplicationsPage() {
               );
             })}
           </div>
+        )}
+
+        </>
         )}
 
         {/* Admin notes modal */}

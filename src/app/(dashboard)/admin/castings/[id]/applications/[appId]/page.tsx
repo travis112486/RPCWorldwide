@@ -135,13 +135,21 @@ export default function ApplicantDetailPage() {
   async function updateStatus(newStatus: string) {
     if (!app) return;
     const oldStatus = app.status;
-    await supabase.from('applications').update({
+    const updatePayload: Record<string, unknown> = {
       status: newStatus,
       reviewed_at: new Date().toISOString(),
-    }).eq('id', app.id);
+    };
+    if (newStatus !== 'shortlisted') {
+      updatePayload.shortlist_rank = null;
+    }
+    await supabase.from('applications').update(updatePayload).eq('id', app.id);
 
     setApplications((prev) =>
-      prev.map((a) => a.id === app.id ? { ...a, status: newStatus } : a),
+      prev.map((a) => a.id === app.id ? {
+        ...a,
+        status: newStatus,
+        shortlist_rank: newStatus !== 'shortlisted' ? null : a.shortlist_rank,
+      } : a),
     );
 
     await logAuditEvent(supabase, {

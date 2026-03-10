@@ -194,6 +194,7 @@ export interface Application {
   admin_notes: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  shortlist_rank: number | null;
   applied_at: string;
   updated_at: string;
 }

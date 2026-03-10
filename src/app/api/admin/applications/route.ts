@@ -67,3 +67,43 @@ export async function GET(req: NextRequest) {
     avatars,
   });
 }
+
+export async function PATCH(request: NextRequest) {
+  const supabase = await createServerSupabaseClient();
+  const authResult = await requireAdminUser(supabase);
+  if (authResult.response) return authResult.response;
+
+  const rateResult = apiLimiter.check(authResult.data!.userId);
+  if (!rateResult.success) return rateLimitResponse(rateResult.retryAfter);
+
+  const body = await request.json();
+  const { id, admin_notes, shortlist_rank } = body as {
+    id: string;
+    admin_notes?: string;
+    shortlist_rank?: number | null;
+  };
+
+  if (!id) {
+    return NextResponse.json({ error: 'Missing application id' }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (admin_notes !== undefined) updates.admin_notes = admin_notes;
+  if (shortlist_rank !== undefined) updates.shortlist_rank = shortlist_rank;
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+  }
+
+  const { error } = await supabase
+    .from('applications')
+    .update(updates)
+    .eq('id', id);
+
+  if (error) {
+    Sentry.captureException(new Error(error.message));
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}

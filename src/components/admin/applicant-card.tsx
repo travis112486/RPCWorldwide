@@ -27,6 +27,7 @@ export interface ApplicationRow {
   status: string;
   note: string | null;
   admin_notes: string | null;
+  shortlist_rank: number | null;
   applied_at: string;
   profiles: ProfileData;
   casting_roles: { id: string; name: string } | null;
@@ -46,6 +47,11 @@ interface ApplicantCardProps {
   onStatusChange: (appId: string, newStatus: string) => void;
   onRoleChange: (appId: string, newRoleId: string) => void;
   onOpenNotes: (app: ApplicationRow) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: () => void;
+  expandable?: boolean;
+  onExpand?: () => void;
 }
 
 const STATUS_OPTIONS = [
@@ -83,6 +89,11 @@ export function ApplicantCard({
   onStatusChange,
   onRoleChange,
   onOpenNotes,
+  selectable,
+  selected,
+  onSelect,
+  expandable,
+  onExpand,
 }: ApplicantCardProps) {
   const p = app.profiles;
   const name = p?.display_name
@@ -102,7 +113,21 @@ export function ApplicantCard({
   if (p?.experience_level) detailParts.push(p.experience_level.replace('_', ' '));
 
   return (
-    <div className="group overflow-hidden rounded-lg border border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+    <div className={`group overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md ${selected ? 'border-brand-secondary ring-2 ring-brand-secondary/30' : 'border-border'}`}>
+      {/* Selection checkbox */}
+      {selectable && (
+        <div className="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onSelect}
+            className="h-3.5 w-3.5 rounded border-border text-brand-secondary focus:ring-brand-secondary"
+          />
+          {app.shortlist_rank != null && (
+            <span className="text-[10px] font-semibold text-muted-foreground">#{app.shortlist_rank}</span>
+          )}
+        </div>
+      )}
       {/* Photo */}
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
         {avatarUrl ? (
@@ -201,6 +226,16 @@ export function ApplicantCard({
           >
             {app.admin_notes ? 'View Notes' : 'Add Notes'}
           </Button>
+          {expandable && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-full text-[11px]"
+              onClick={onExpand}
+            >
+              Quick View
+            </Button>
+          )}
         </div>
       </div>
     </div>

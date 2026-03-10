@@ -32,6 +32,7 @@ const STATUS_FILTER = [
 
 export default function AdminCastingsPage() {
   const [castings, setCastings] = useState<CastingCall[]>([]);
+  const [shortlistCounts, setShortlistCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -54,7 +55,25 @@ export default function AdminCastingsPage() {
     if (search.trim()) query = query.ilike('title', `%${search}%`);
 
     const { data } = await query;
-    setCastings((data as CastingCall[]) ?? []);
+    const castingsList = (data as CastingCall[]) ?? [];
+    setCastings(castingsList);
+
+    // Fetch shortlisted counts
+    if (castingsList.length > 0) {
+      const castingIds = castingsList.map((c) => c.id);
+      const { data: apps } = await supabase
+        .from('applications')
+        .select('casting_call_id')
+        .in('casting_call_id', castingIds)
+        .eq('status', 'shortlisted');
+
+      const counts: Record<string, number> = {};
+      (apps ?? []).forEach((a) => {
+        counts[a.casting_call_id] = (counts[a.casting_call_id] || 0) + 1;
+      });
+      setShortlistCounts(counts);
+    }
+
     setLoading(false);
   }, [supabase, router, search, statusFilter]);
 
@@ -135,6 +154,11 @@ export default function AdminCastingsPage() {
                     </Link>
                     <Badge variant={statusVariants[casting.status] ?? 'default'}>{casting.status}</Badge>
                     {casting.is_featured && <Badge variant="warning">Featured</Badge>}
+                    {shortlistCounts[casting.id] > 0 && (
+                      <Badge variant="success" className="text-[10px]">
+                        {shortlistCounts[casting.id]} shortlisted
+                      </Badge>
+                    )}
                   </div>
                   <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                     <span>{projectTypeLabels[casting.project_type] ?? casting.project_type}</span>

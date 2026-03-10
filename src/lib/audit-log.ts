@@ -22,6 +22,8 @@ export type AuditAction =
   | 'tag.remove'
   | 'bulk.tag'
   | 'bulk.invite'
+  | 'application.bulk_status_change'
+  | 'application.reorder'
 
 export type AuditEntityType = 'user' | 'application' | 'casting_call'
 

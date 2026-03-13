@@ -28,14 +28,23 @@ export type ProjectType =
 export type CastingStatus = 'draft' | 'open' | 'closed' | 'archived';
 export type CastingVisibility = 'public' | 'registered_only' | 'invite_only';
 export type CompensationType = 'paid' | 'unpaid' | 'deferred' | 'tbd';
-export type ApplicationStatus = 'submitted' | 'under_review' | 'shortlisted' | 'declined' | 'booked';
+export type ApplicationStatus = 'submitted' | 'under_review' | 'shortlisted' | 'declined' | 'booked' | 'on_avail' | 'released';
 export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 export type InterestStatus = 'interested' | 'not_interested' | 'request_more_info' | 'pending';
 
 export type MediaType = 'photo' | 'video';
-export type MediaCategory = 'headshot' | 'full_body' | 'lifestyle' | 'commercial' | 'editorial' | 'demo_reel' | 'other';
+export type MediaCategory = 'headshot' | 'full_body' | 'lifestyle' | 'commercial' | 'editorial' | 'demo_reel' | 'other' | 'self_tape';
 
 export type TalentType = 'model' | 'actor' | 'voice_actor' | 'dancer' | 'singer' | 'extra' | 'other';
+
+// Phase 2 enums
+export type RoleType = 'principal' | 'background' | 'extra' | 'stand_in' | 'stunt' | 'voice_over' | 'model' | 'dancer' | 'other';
+export type UnionStatus = 'sag_aftra' | 'sag_aftra_eligible' | 'aea' | 'non_union' | 'any' | 'fi_core';
+export type WorksheetStatus = 'under_consideration' | 'pinned' | 'on_avail' | 'on_hold' | 'backup' | 'booked' | 'released';
+export type MediaRequestStatus = 'draft' | 'sent' | 'closed';
+export type MediaResponseStatus = 'not_sent' | 'pending' | 'confirmed' | 'declined' | 'received';
+export type PresentationType = 'live' | 'custom';
+export type SessionSource = 'media_request' | 'manual';
 
 // ============================================================
 // Table interfaces
@@ -88,6 +97,7 @@ export interface Profile {
   notify_casting_invites: boolean | null;
   notify_application_updates: boolean | null;
   notify_marketing: boolean | null;
+  search_vector: unknown | null; // Auto-generated tsvector, server-side only
   created_at: string;
   updated_at: string;
 }
@@ -170,6 +180,17 @@ export interface CastingRole {
   description: string | null;
   attribute_requirements: Record<string, unknown> | null;
   sort_order: number | null;
+  role_type: RoleType | null;
+  union_requirement: UnionStatus | null;
+  pay_rate: string | null;
+  gender_requirement: Gender[] | null;
+  age_min: number | null;
+  age_max: number | null;
+  ethnicity_requirement: string[] | null;
+  location_requirement: string | null;
+  is_open: boolean;
+  work_date: string | null;
+  submission_deadline: string | null;
   created_at: string;
 }
 
@@ -195,6 +216,15 @@ export interface Application {
   reviewed_by: string | null;
   reviewed_at: string | null;
   shortlist_rank: number | null;
+  worksheet_status: WorksheetStatus | null;
+  select_number: number | null;
+  select_letter: string | null;
+  feedback: string | null;
+  feedback_by: string | null;
+  feedback_at: string | null;
+  viewed_at: string | null;
+  worksheet_updated_at: string | null;
+  worksheet_updated_by: string | null;
   applied_at: string;
   updated_at: string;
 }
@@ -283,4 +313,138 @@ export interface RepTalentReview {
   interest_status: InterestStatus;
   notes: string | null;
   updated_at: string;
+}
+
+// ============================================================
+// Phase 2: Media Requests
+// ============================================================
+
+export interface MediaRequest {
+  id: string;
+  casting_call_id: string;
+  role_id: string | null;
+  name: string;
+  instructions: string | null;
+  status: MediaRequestStatus;
+  deadline: string | null;
+  created_by: string;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MediaRequestRecipient {
+  id: string;
+  media_request_id: string;
+  user_id: string;
+  status: MediaResponseStatus;
+  sent_at: string | null;
+  responded_at: string | null;
+  decline_reason: string | null;
+  created_at: string;
+}
+
+export interface MediaRequestSubmission {
+  id: string;
+  recipient_id: string;
+  media_id: string;
+  note: string | null;
+  submitted_at: string;
+}
+
+// ============================================================
+// Phase 2: Sessions
+// ============================================================
+
+export interface Session {
+  id: string;
+  casting_call_id: string;
+  name: string;
+  source: SessionSource;
+  media_request_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionGroup {
+  id: string;
+  session_id: string;
+  name: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface SessionGroupMember {
+  id: string;
+  session_group_id: string;
+  application_id: string;
+  sort_order: number;
+  added_at: string;
+}
+
+// ============================================================
+// Phase 2: Favorite Lists
+// ============================================================
+
+export interface FavoriteList {
+  id: string;
+  name: string;
+  description: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FavoriteListMember {
+  id: string;
+  favorite_list_id: string;
+  user_id: string;
+  note: string | null;
+  added_at: string;
+}
+
+// ============================================================
+// Phase 2: Presentations
+// ============================================================
+
+export interface Presentation {
+  id: string;
+  casting_call_id: string;
+  name: string;
+  type: PresentationType;
+  access_token: string;
+  password: string | null;
+  is_active: boolean;
+  expires_at: string | null;
+  allow_feedback: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PresentationSession {
+  id: string;
+  presentation_id: string;
+  session_id: string;
+  sort_order: number;
+}
+
+export interface PresentationItem {
+  id: string;
+  presentation_id: string;
+  application_id: string;
+  note: string | null;
+  sort_order: number;
+  added_at: string;
+}
+
+export interface PresentationFeedback {
+  id: string;
+  presentation_id: string;
+  application_id: string;
+  viewer_name: string | null;
+  rating: number | null;
+  comment: string | null;
+  created_at: string;
 }

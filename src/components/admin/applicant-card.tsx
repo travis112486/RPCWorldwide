@@ -18,6 +18,8 @@ interface ProfileData {
   weight_kg: number | null;
   gender: string | null;
   bio: string | null;
+  date_of_birth?: string | null;
+  profile_ethnicities?: { ethnicity: string }[] | null;
 }
 
 export interface ApplicationRow {
@@ -41,6 +43,10 @@ export interface CastingRoleRow {
   role_type?: string | null;
   union_requirement?: string | null;
   pay_rate?: string | null;
+  gender_requirement?: string[] | null;
+  age_min?: number | null;
+  age_max?: number | null;
+  ethnicity_requirement?: string[] | null;
 }
 
 interface ApplicantCardProps {

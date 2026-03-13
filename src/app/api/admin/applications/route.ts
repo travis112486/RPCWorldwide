@@ -25,12 +25,12 @@ export async function GET(req: NextRequest) {
       .single(),
     supabase
       .from('casting_roles')
-      .select('id, name, description, sort_order, role_type, union_requirement, pay_rate')
+      .select('id, name, description, sort_order, role_type, union_requirement, pay_rate, gender_requirement, age_min, age_max, ethnicity_requirement')
       .eq('casting_call_id', castingId)
       .order('sort_order', { ascending: true }),
     supabase
       .from('applications')
-      .select('*, profiles!user_id(display_name, first_name, last_name, city, state, talent_type, experience_level, height_cm, weight_kg, gender, bio), casting_roles(id, name)')
+      .select('*, profiles!user_id(display_name, first_name, last_name, city, state, talent_type, experience_level, height_cm, weight_kg, gender, bio, date_of_birth, profile_ethnicities(ethnicity)), casting_roles(id, name)')
       .eq('casting_call_id', castingId)
       .order('applied_at', { ascending: false }),
   ]);

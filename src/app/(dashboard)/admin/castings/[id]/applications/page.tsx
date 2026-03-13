@@ -18,6 +18,14 @@ import { useToast } from '@/components/ui/toast';
 import type { ApplicationRow, CastingRoleRow } from '@/components/admin/applicant-card';
 import { ShortlistTab } from '@/components/admin/shortlist-tab';
 import { RoleAttributeBadges } from '@/components/casting/RoleAttributeBadges';
+import {
+  type CriteriaOverrides,
+  type TalentProfile,
+  matchesCriteria,
+  buildOverridesFromRole,
+  emptyCriteriaOverrides,
+} from '@/lib/utils/role-filter';
+import { GENDER_OPTIONS } from '@/constants/profile';
 
 interface CastingDetail {
   title: string;
@@ -119,6 +127,8 @@ export default function AdminCastingApplicationsPage() {
   const [roleFilter, setRoleFilter] = useState('');
   const [showDescription, setShowDescription] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(loadAppViewMode);
+  const [autofillEnabled, setAutofillEnabled] = useState(false);
+  const [criteriaOverrides, setCriteriaOverrides] = useState<CriteriaOverrides>(emptyCriteriaOverrides());
   const [activeTab, setActiveTab] = useState<'all' | 'shortlisted'>('all');
 
   // Notes modal
@@ -298,11 +308,62 @@ export default function AdminCastingApplicationsPage() {
     });
   }
 
+  function handleAutofillToggle(enabled: boolean) {
+    setAutofillEnabled(enabled);
+    if (enabled && roleFilter) {
+      const role = roles.find((r) => r.id === roleFilter);
+      if (role) {
+        setCriteriaOverrides(buildOverridesFromRole(role));
+      }
+    } else if (!enabled) {
+      setCriteriaOverrides(emptyCriteriaOverrides());
+    }
+  }
+
+  function handleRoleFilterChange(newRoleId: string) {
+    setRoleFilter(newRoleId);
+    if (autofillEnabled) {
+      if (!newRoleId) {
+        setAutofillEnabled(false);
+        setCriteriaOverrides(emptyCriteriaOverrides());
+      } else {
+        const role = roles.find((r) => r.id === newRoleId);
+        if (role) setCriteriaOverrides(buildOverridesFromRole(role));
+      }
+    }
+  }
+
+  function removeCriterion(key: 'gender' | 'age' | 'ethnicity') {
+    const updated = { ...criteriaOverrides };
+    if (key === 'gender') updated.gender = { ...updated.gender, enabled: false };
+    else if (key === 'age') updated.age = { ...updated.age, enabled: false };
+    else updated.ethnicity = { ...updated.ethnicity, enabled: false };
+    setCriteriaOverrides(updated);
+    if (!updated.gender.enabled && !updated.age.enabled && !updated.ethnicity.enabled) {
+      setAutofillEnabled(false);
+    }
+  }
+
+  const activeCriteriaCount = [
+    criteriaOverrides.gender.enabled,
+    criteriaOverrides.age.enabled,
+    criteriaOverrides.ethnicity.enabled,
+  ].filter(Boolean).length;
+
   const shortlistedCount = applications.filter((a) => a.status === 'shortlisted').length;
 
   const filtered = applications
     .filter((a) => !statusFilter || a.status === statusFilter)
-    .filter((a) => !roleFilter || a.role_id === roleFilter);
+    .filter((a) => !roleFilter || a.role_id === roleFilter)
+    .filter((a) => {
+      if (!autofillEnabled || activeCriteriaCount === 0) return true;
+      const profile: TalentProfile = {
+        gender: (a.profiles?.gender as TalentProfile['gender']) ?? null,
+        date_of_birth: a.profiles?.date_of_birth ?? null,
+        ethnicities: a.profiles?.profile_ethnicities?.map((e) => e.ethnicity) ?? [],
+      };
+      return matchesCriteria(profile, criteriaOverrides).passes;
+    });
 
   if (loading) {
     return (
@@ -481,14 +542,31 @@ export default function AdminCastingApplicationsPage() {
                   ...roles.map((r) => ({ value: r.id, label: r.name })),
                 ]}
                 value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
+                onChange={(e) => handleRoleFilterChange(e.target.value)}
                 className="h-9 text-xs sm:w-40 sm:text-sm"
               />
+            )}
+            {roles.length > 0 && (
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs sm:text-sm">
+                <input
+                  type="checkbox"
+                  checked={autofillEnabled}
+                  onChange={(e) => handleAutofillToggle(e.target.checked)}
+                  disabled={!roleFilter}
+                  className="h-3.5 w-3.5 rounded border-border accent-brand-secondary disabled:opacity-50"
+                />
+                <span className={!roleFilter ? 'text-muted-foreground' : 'text-foreground'}>
+                  Auto-filter by role criteria
+                </span>
+              </label>
             )}
           </div>
           <div className="flex items-center gap-3">
             <p className="text-xs text-muted-foreground sm:text-sm">
               {filtered.length} of {applications.length} applicant{applications.length !== 1 ? 's' : ''}
+              {activeCriteriaCount > 0 && (
+                <span className="ml-1 text-brand-secondary">({activeCriteriaCount} criteria filter{activeCriteriaCount !== 1 ? 's' : ''})</span>
+              )}
             </p>
             {/* View toggle */}
             <div className="inline-flex rounded-lg border border-border">
@@ -516,11 +594,44 @@ export default function AdminCastingApplicationsPage() {
           </div>
         </div>
 
+        {/* Criteria filter chips */}
+        {autofillEnabled && activeCriteriaCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground">Filtering by:</span>
+            {criteriaOverrides.gender.enabled && (
+              <Badge variant="secondary" className="gap-1 pr-1">
+                Gender: {criteriaOverrides.gender.values.map((v) => GENDER_OPTIONS.find((o) => o.value === v)?.label ?? v).join(', ')}
+                <button type="button" onClick={() => removeCriterion('gender')} className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20" aria-label="Remove gender filter">
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </Badge>
+            )}
+            {criteriaOverrides.age.enabled && (
+              <Badge variant="secondary" className="gap-1 pr-1">
+                Age: {criteriaOverrides.age.min != null && criteriaOverrides.age.max != null
+                  ? `${criteriaOverrides.age.min}–${criteriaOverrides.age.max}`
+                  : criteriaOverrides.age.min != null ? `${criteriaOverrides.age.min}+` : `up to ${criteriaOverrides.age.max}`}
+                <button type="button" onClick={() => removeCriterion('age')} className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20" aria-label="Remove age filter">
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </Badge>
+            )}
+            {criteriaOverrides.ethnicity.enabled && (
+              <Badge variant="secondary" className="gap-1 pr-1">
+                Ethnicity: {criteriaOverrides.ethnicity.values.join(', ')}
+                <button type="button" onClick={() => removeCriterion('ethnicity')} className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20" aria-label="Remove ethnicity filter">
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </Badge>
+            )}
+          </div>
+        )}
+
         {/* Applicants */}
         {filtered.length === 0 ? (
           <div className="rounded-xl border-2 border-dashed border-border p-8 text-center sm:p-12">
             <p className="text-sm text-muted-foreground">
-              No applications {statusFilter || roleFilter ? 'matching filters' : 'yet'}.
+              No applications {statusFilter || roleFilter || autofillEnabled ? 'matching filters' : 'yet'}.
             </p>
           </div>
         ) : viewMode === 'card' ? (

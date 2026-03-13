@@ -10,7 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { MultiSelect } from '@/components/ui/multi-select';
 import { useToast } from '@/components/ui/toast';
+import { ROLE_TYPE_OPTIONS, UNION_REQUIREMENT_OPTIONS } from '@/constants/casting';
+import { GENDER_OPTIONS, ETHNICITY_OPTIONS } from '@/constants/profile';
+import type { RoleType, UnionStatus } from '@/types/database';
 
 const PROJECT_TYPE_OPTIONS = [
   { value: 'film', label: 'Film' },
@@ -41,9 +45,40 @@ const STATUS_OPTIONS = [
   { value: 'open', label: 'Open' },
 ];
 
+const ETHNICITY_SELECT_OPTIONS = ETHNICITY_OPTIONS.map((e) => ({ value: e, label: e }));
+
 interface RoleInput {
   name: string;
   description: string;
+  role_type: RoleType | '';
+  union_requirement: UnionStatus | '';
+  pay_rate: string;
+  gender_requirement: string[];
+  age_min: string;
+  age_max: string;
+  ethnicity_requirement: string[];
+  location_requirement: string;
+  is_open: boolean;
+  work_date: string;
+  submission_deadline: string;
+}
+
+function emptyRole(): RoleInput {
+  return {
+    name: '',
+    description: '',
+    role_type: '',
+    union_requirement: '',
+    pay_rate: '',
+    gender_requirement: [],
+    age_min: '',
+    age_max: '',
+    ethnicity_requirement: [],
+    location_requirement: '',
+    is_open: true,
+    work_date: '',
+    submission_deadline: '',
+  };
 }
 
 export default function NewCastingPage() {
@@ -60,7 +95,8 @@ export default function NewCastingPage() {
   const [visibility, setVisibility] = useState('public');
   const [status, setStatus] = useState('draft');
   const [isFeatured, setIsFeatured] = useState(false);
-  const [roles, setRoles] = useState<RoleInput[]>([{ name: '', description: '' }]);
+  const [roles, setRoles] = useState<RoleInput[]>([emptyRole()]);
+  const [expandedRoles, setExpandedRoles] = useState<Record<number, boolean>>({ 0: true });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -69,10 +105,12 @@ export default function NewCastingPage() {
   const { toast } = useToast();
 
   function addRole() {
-    setRoles([...roles, { name: '', description: '' }]);
+    const newIndex = roles.length;
+    setRoles([...roles, emptyRole()]);
+    setExpandedRoles((prev) => ({ ...prev, [newIndex]: true }));
   }
 
-  function updateRole(index: number, field: 'name' | 'description', value: string) {
+  function updateRole<K extends keyof RoleInput>(index: number, field: K, value: RoleInput[K]) {
     const updated = [...roles];
     updated[index] = { ...updated[index], [field]: value };
     setRoles(updated);
@@ -81,6 +119,10 @@ export default function NewCastingPage() {
   function removeRole(index: number) {
     if (roles.length <= 1) return;
     setRoles(roles.filter((_, i) => i !== index));
+  }
+
+  function toggleExpanded(index: number) {
+    setExpandedRoles((prev) => ({ ...prev, [index]: !prev[index] }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -93,6 +135,11 @@ export default function NewCastingPage() {
     if (endDate && startDate && new Date(endDate) < new Date(startDate)) {
       errs.endDate = 'End date must be after start date';
     }
+    roles.forEach((r, i) => {
+      if (r.age_min && r.age_max && Number(r.age_min) > Number(r.age_max)) {
+        errs[`role_age_${i}`] = `Role "${r.name || i + 1}": min age cannot exceed max age`;
+      }
+    });
 
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
@@ -138,6 +185,17 @@ export default function NewCastingPage() {
           name: r.name.trim(),
           description: r.description.trim() || null,
           sort_order: i,
+          role_type: r.role_type || null,
+          union_requirement: r.union_requirement || null,
+          pay_rate: r.pay_rate.trim() || null,
+          gender_requirement: r.gender_requirement.length > 0 ? r.gender_requirement : null,
+          age_min: r.age_min ? Number(r.age_min) : null,
+          age_max: r.age_max ? Number(r.age_max) : null,
+          ethnicity_requirement: r.ethnicity_requirement.length > 0 ? r.ethnicity_requirement : null,
+          location_requirement: r.location_requirement.trim() || null,
+          is_open: r.is_open,
+          work_date: r.work_date || null,
+          submission_deadline: r.submission_deadline || null,
         })),
       );
     }
@@ -179,15 +237,57 @@ export default function NewCastingPage() {
             <label className="mb-1.5 block text-sm font-medium text-foreground">Roles</label>
             <div className="space-y-3">
               {roles.map((role, i) => (
-                <div key={i} className="flex gap-3 rounded-lg border border-border p-3">
-                  <div className="flex-1 space-y-2">
-                    <Input id={`role-name-${i}`} placeholder="Role name" value={role.name} onChange={(e) => updateRole(i, 'name', e.target.value)} />
-                    <Input id={`role-desc-${i}`} placeholder="Role description (optional)" value={role.description} onChange={(e) => updateRole(i, 'description', e.target.value)} />
+                <div key={i} className="rounded-lg border border-border p-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 space-y-2">
+                      <Input id={`role-name-${i}`} placeholder="Role name" value={role.name} onChange={(e) => updateRole(i, 'name', e.target.value)} />
+                      <Input id={`role-desc-${i}`} placeholder="Role description (optional)" value={role.description} onChange={(e) => updateRole(i, 'description', e.target.value)} />
+                    </div>
+                    <div className="flex gap-2 self-start mt-2">
+                      <button type="button" onClick={() => toggleExpanded(i)} className="text-xs text-muted-foreground hover:text-foreground">
+                        {expandedRoles[i] ? 'Less' : 'More'}
+                      </button>
+                      {roles.length > 1 && (
+                        <button type="button" onClick={() => removeRole(i)} className="text-destructive hover:text-destructive/80 text-sm">
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  {roles.length > 1 && (
-                    <button type="button" onClick={() => removeRole(i)} className="self-start text-destructive hover:text-destructive/80 text-sm mt-2">
-                      Remove
-                    </button>
+
+                  {expandedRoles[i] && (
+                    <div className="mt-3 space-y-3 border-t border-border pt-3">
+                      {errors[`role_age_${i}`] && (
+                        <p className="text-sm text-destructive">{errors[`role_age_${i}`]}</p>
+                      )}
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Select id={`role-type-${i}`} label="Role Type" options={[{ value: '', label: 'Any' }, ...ROLE_TYPE_OPTIONS]} value={role.role_type} onChange={(e) => updateRole(i, 'role_type', e.target.value as RoleType | '')} />
+                        <Select id={`role-union-${i}`} label="Union Requirement" options={[{ value: '', label: 'Any' }, ...UNION_REQUIREMENT_OPTIONS]} value={role.union_requirement} onChange={(e) => updateRole(i, 'union_requirement', e.target.value as UnionStatus | '')} />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <MultiSelect id={`role-gender-${i}`} label="Gender" options={GENDER_OPTIONS} value={role.gender_requirement} onChange={(val) => updateRole(i, 'gender_requirement', val)} />
+                        <MultiSelect id={`role-ethnicity-${i}`} label="Ethnicity" options={ETHNICITY_SELECT_OPTIONS} value={role.ethnicity_requirement} onChange={(val) => updateRole(i, 'ethnicity_requirement', val)} />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <Input id={`role-age-min-${i}`} type="number" label="Age Min" placeholder="e.g., 18" value={role.age_min} onChange={(e) => updateRole(i, 'age_min', e.target.value)} />
+                        <Input id={`role-age-max-${i}`} type="number" label="Age Max" placeholder="e.g., 35" value={role.age_max} onChange={(e) => updateRole(i, 'age_max', e.target.value)} />
+                        <Input id={`role-pay-${i}`} label="Pay Rate" placeholder="e.g., $500/day" value={role.pay_rate} onChange={(e) => updateRole(i, 'pay_rate', e.target.value)} />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Input id={`role-location-${i}`} label="Location Requirement" placeholder="e.g., Must be local to NYC" value={role.location_requirement} onChange={(e) => updateRole(i, 'location_requirement', e.target.value)} />
+                        <Input id={`role-work-date-${i}`} type="date" label="Work Date" value={role.work_date} onChange={(e) => updateRole(i, 'work_date', e.target.value)} />
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Input id={`role-deadline-${i}`} type="datetime-local" label="Submission Deadline" value={role.submission_deadline} onChange={(e) => updateRole(i, 'submission_deadline', e.target.value)} />
+                        <div className="flex items-end">
+                          <Checkbox id={`role-open-${i}`} label="Role is open for submissions" checked={role.is_open} onChange={(e) => updateRole(i, 'is_open', (e.target as HTMLInputElement).checked)} />
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))}

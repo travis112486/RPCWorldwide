@@ -22,7 +22,7 @@ async function setupBuckets() {
     { id: 'avatars', public: true, fileSizeLimit: 5 * 1024 * 1024, allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'] },
     { id: 'portfolio', public: false, fileSizeLimit: 50 * 1024 * 1024, allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'] },
     { id: 'casting-attachments', public: false, fileSizeLimit: 10 * 1024 * 1024, allowedMimeTypes: ['application/pdf', 'image/jpeg', 'image/png'] },
-    { id: 'self-tapes', public: false, fileSizeLimit: 500 * 1024 * 1024, allowedMimeTypes: ['video/mp4', 'video/quicktime', 'video/webm'] },
+    { id: 'self-tapes', public: false, fileSizeLimit: 200 * 1024 * 1024, allowedMimeTypes: ['video/mp4', 'video/quicktime', 'video/webm', 'image/jpeg', 'image/png'] },
   ];
 
   for (const bucket of buckets) {

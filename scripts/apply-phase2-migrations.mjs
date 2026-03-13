@@ -86,9 +86,6 @@ async function applyMigration(filename) {
 }
 
 async function applyViaSqlEndpoint(filename, sql) {
-  // Use the Supabase pg endpoint for direct SQL execution
-  const pgUrl = supabaseUrl.replace('.supabase.co', '.supabase.co');
-
   const response = await fetch(`${supabaseUrl}/pg/query`, {
     method: 'POST',
     headers: {
@@ -122,7 +119,7 @@ async function verify() {
     'presentation_type', 'session_source',
   ];
   for (const enumName of expectedEnums) {
-    const { data, error } = await supabase.rpc('exec_sql', {
+    const { error } = await supabase.rpc('exec_sql', {
       sql_text: `SELECT typname FROM pg_type WHERE typname = '${enumName}'`,
     });
     // Fallback: just try to query a table that uses the enum

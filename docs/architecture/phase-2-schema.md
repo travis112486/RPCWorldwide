@@ -169,7 +169,7 @@ A named request sent from a CD to talent for self-tapes or additional media.
 
 ```sql
 create table public.media_requests (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   casting_call_id uuid not null references public.casting_calls(id) on delete cascade,
   role_id         uuid references public.casting_roles(id) on delete set null,
   name            text not null,                           -- "Self Tapes R1", "Group self tape request"
@@ -189,7 +189,7 @@ Per-talent tracking for a media request. Links a request to specific talent with
 
 ```sql
 create table public.media_request_recipients (
-  id                uuid primary key default uuid_generate_v4(),
+  id                uuid primary key default gen_random_uuid(),
   media_request_id  uuid not null references public.media_requests(id) on delete cascade,
   user_id           uuid not null references public.profiles(id) on delete cascade,
   status            public.media_response_status not null default 'not_sent',
@@ -207,7 +207,7 @@ Actual media files submitted by talent in response to a request.
 
 ```sql
 create table public.media_request_submissions (
-  id            uuid primary key default uuid_generate_v4(),
+  id            uuid primary key default gen_random_uuid(),
   recipient_id  uuid not null references public.media_request_recipients(id) on delete cascade,
   media_id      uuid not null references public.media(id) on delete cascade,
   note          text,
@@ -221,7 +221,7 @@ Organizes audition media into reviewable groups. A session can be auto-created f
 
 ```sql
 create table public.sessions (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   casting_call_id uuid not null references public.casting_calls(id) on delete cascade,
   name            text not null,                          -- "Self Tapes R1", "Miami additionals"
   source          public.session_source not null default 'manual',
@@ -238,7 +238,7 @@ Groups within a session. Each group contains talent selections organized for rev
 
 ```sql
 create table public.session_groups (
-  id          uuid primary key default uuid_generate_v4(),
+  id          uuid primary key default gen_random_uuid(),
   session_id  uuid not null references public.sessions(id) on delete cascade,
   name        text,
   sort_order  integer not null default 0,
@@ -252,7 +252,7 @@ Links talent (via their application) to a session group.
 
 ```sql
 create table public.session_group_members (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   session_group_id uuid not null references public.session_groups(id) on delete cascade,
   application_id  uuid not null references public.applications(id) on delete cascade,
   sort_order      integer not null default 0,
@@ -267,11 +267,11 @@ Shareable links for external clients to review talent. The key feature is token-
 
 ```sql
 create table public.presentations (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   casting_call_id uuid not null references public.casting_calls(id) on delete cascade,
   name            text not null,                          -- "Starbucks Casting ALL talent"
   type            public.presentation_type not null default 'custom',
-  access_token    text not null default encode(gen_random_bytes(32), 'hex'),
+  access_token    text not null default encode(extensions.gen_random_bytes(32), 'hex'),
   password        text,                                   -- Optional password protection
   is_active       boolean not null default true,
   expires_at      timestamptz,                            -- Optional expiry
@@ -288,7 +288,7 @@ Links sessions to live presentations (auto-updating content).
 
 ```sql
 create table public.presentation_sessions (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   presentation_id uuid not null references public.presentations(id) on delete cascade,
   session_id      uuid not null references public.sessions(id) on delete cascade,
   sort_order      integer not null default 0,
@@ -302,7 +302,7 @@ For custom (static) presentations — direct talent selections.
 
 ```sql
 create table public.presentation_items (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   presentation_id uuid not null references public.presentations(id) on delete cascade,
   application_id  uuid not null references public.applications(id) on delete cascade,
   note            text,                                   -- CD note about this talent
@@ -318,7 +318,7 @@ Feedback from external viewers (clients/producers) on specific talent within a p
 
 ```sql
 create table public.presentation_feedback (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   presentation_id uuid not null references public.presentations(id) on delete cascade,
   application_id  uuid not null references public.applications(id) on delete cascade,
   viewer_name     text,                                   -- Self-identified name
@@ -334,7 +334,7 @@ Named lists of talent saved by casting directors for reuse across projects.
 
 ```sql
 create table public.favorite_lists (
-  id          uuid primary key default uuid_generate_v4(),
+  id          uuid primary key default gen_random_uuid(),
   name        text not null,
   description text,
   created_by  uuid not null references public.profiles(id) on delete cascade,
@@ -347,7 +347,7 @@ alter table public.favorite_lists enable row level security;
 ### `favorite_list_members`
 ```sql
 create table public.favorite_list_members (
-  id               uuid primary key default uuid_generate_v4(),
+  id               uuid primary key default gen_random_uuid(),
   favorite_list_id uuid not null references public.favorite_lists(id) on delete cascade,
   user_id          uuid not null references public.profiles(id) on delete cascade,
   note             text,

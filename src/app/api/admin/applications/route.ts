@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       .single(),
     supabase
       .from('casting_roles')
-      .select('id, name, description, sort_order')
+      .select('id, name, description, sort_order, role_type, union_requirement, pay_rate')
       .eq('casting_call_id', castingId)
       .order('sort_order', { ascending: true }),
     supabase

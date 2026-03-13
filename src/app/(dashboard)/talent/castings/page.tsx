@@ -12,7 +12,12 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
+import { RoleAttributeBadges } from '@/components/casting/RoleAttributeBadges';
 import type { CastingCall, CastingRole, Application } from '@/types/database';
+
+type CastingWithRoles = CastingCall & {
+  casting_roles?: Pick<CastingRole, 'role_type' | 'union_requirement' | 'pay_rate'>[];
+};
 
 const PROJECT_TYPE_FILTER = [
   { value: '', label: 'All Types' },
@@ -48,7 +53,7 @@ export default function TalentCastingsPage() {
 
 function CastingsContent() {
   const [tab, setTab] = useState<'open' | 'invited'>('open');
-  const [castings, setCastings] = useState<CastingCall[]>([]);
+  const [castings, setCastings] = useState<CastingWithRoles[]>([]);
   const [invitations, setInvitations] = useState<Array<{
     id: string; status: string; message: string | null; sent_at: string;
     casting_calls: CastingCall;
@@ -78,7 +83,7 @@ function CastingsContent() {
     const [castingsRes, invitationsRes, applicationsRes] = await Promise.all([
       supabase
         .from('casting_calls')
-        .select('*')
+        .select('*, casting_roles(role_type, union_requirement, pay_rate)')
         .eq('status', 'open')
         .order('deadline', { ascending: true }),
       supabase
@@ -92,7 +97,7 @@ function CastingsContent() {
         .eq('user_id', user.id),
     ]);
 
-    setCastings((castingsRes.data as CastingCall[]) ?? []);
+    setCastings((castingsRes.data as CastingWithRoles[]) ?? []);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setInvitations((invitationsRes.data as any) ?? []);
     setApplications((applicationsRes.data as Application[]) ?? []);
@@ -279,6 +284,17 @@ function CastingsContent() {
                       <Badge variant="secondary">{projectTypeLabels[casting.project_type] ?? casting.project_type}</Badge>
                       <Badge variant="outline">{compensationLabels[casting.compensation_type] ?? casting.compensation_type}</Badge>
                     </div>
+
+                    {casting.casting_roles && casting.casting_roles.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {casting.casting_roles.slice(0, 3).map((role, idx) => (
+                          <RoleAttributeBadges key={idx} role={role} mode="compact" />
+                        ))}
+                        {casting.casting_roles.length > 3 && (
+                          <span className="text-xs text-muted-foreground">+{casting.casting_roles.length - 3} more roles</span>
+                        )}
+                      </div>
+                    )}
 
                     {casting.location_text && (
                       <p className="mt-2 text-xs text-muted-foreground">{casting.location_text}</p>

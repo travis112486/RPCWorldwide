@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { PublicLayout } from '@/components/layout';
 import { Badge } from '@/components/ui/badge';
+import { RoleAttributeBadges } from '@/components/casting/RoleAttributeBadges';
 import type { Metadata } from 'next';
 
 interface Props {
@@ -153,9 +154,13 @@ export default async function CastingDetailPage({ params }: Props) {
                 <div className="mt-3 space-y-3">
                   {roles.map((role) => (
                     <div key={role.id} className="rounded-lg border border-border bg-card p-4">
-                      <h3 className="font-medium text-foreground">{role.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-foreground">{role.name}</h3>
+                        {role.is_open === false && <Badge variant="destructive">Closed</Badge>}
+                      </div>
+                      <RoleAttributeBadges role={role} mode="full" className="mt-2" />
                       {role.description && (
-                        <p className="mt-1 text-sm text-muted-foreground">{role.description}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">{role.description}</p>
                       )}
                     </div>
                   ))}

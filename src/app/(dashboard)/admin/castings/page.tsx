@@ -149,7 +149,7 @@ export default function AdminCastingsPage() {
               <div key={casting.id} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <Link href={`/admin/castings/${casting.id}/applications`} className="font-semibold text-foreground hover:text-brand-secondary truncate">
+                    <Link href={`/admin/castings/${casting.id}`} className="font-semibold text-foreground hover:text-brand-secondary truncate">
                       {casting.title}
                     </Link>
                     <Badge variant={statusVariants[casting.status] ?? 'default'}>{casting.status}</Badge>

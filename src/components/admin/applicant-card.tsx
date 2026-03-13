@@ -30,6 +30,7 @@ export interface ApplicationRow {
   note: string | null;
   admin_notes: string | null;
   shortlist_rank: number | null;
+  viewed_at?: string | null;
   applied_at: string;
   profiles: ProfileData;
   casting_roles: { id: string; name: string } | null;
@@ -47,6 +48,7 @@ export interface CastingRoleRow {
   age_min?: number | null;
   age_max?: number | null;
   ethnicity_requirement?: string[] | null;
+  is_open?: boolean;
 }
 
 interface ApplicantCardProps {

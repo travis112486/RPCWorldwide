@@ -22,6 +22,7 @@ async function setupBuckets() {
     { id: 'avatars', public: true, fileSizeLimit: 5 * 1024 * 1024, allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'] },
     { id: 'portfolio', public: false, fileSizeLimit: 50 * 1024 * 1024, allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'] },
     { id: 'casting-attachments', public: false, fileSizeLimit: 10 * 1024 * 1024, allowedMimeTypes: ['application/pdf', 'image/jpeg', 'image/png'] },
+    { id: 'self-tapes', public: false, fileSizeLimit: 200 * 1024 * 1024, allowedMimeTypes: ['video/mp4', 'video/quicktime', 'video/webm', 'image/jpeg', 'image/png'] },
   ];
 
   for (const bucket of buckets) {
@@ -63,6 +64,7 @@ async function setupStoragePolicies() {
   console.log('  avatars: Public read (bucket is public). Users upload to their own folder via app logic.');
   console.log('  portfolio: Authenticated access only (bucket is private). Users manage own files.');
   console.log('  casting-attachments: Private (admin-only access enforced at app level).');
+  console.log('  self-tapes: Private (user-scoped RLS policies via migration 00010).');
 }
 
 async function verifyDatabase() {
@@ -72,6 +74,12 @@ async function verifyDatabase() {
     'profile_unions', 'media', 'casting_calls', 'casting_roles',
     'casting_attachments', 'applications', 'casting_invitations',
     'user_tags', 'saved_searches', 'notification_preferences',
+    // Phase 2 tables
+    'media_requests', 'media_request_recipients', 'media_request_submissions',
+    'sessions', 'session_groups', 'session_group_members',
+    'favorite_lists', 'favorite_list_members',
+    'presentations', 'presentation_sessions', 'presentation_items',
+    'presentation_feedback',
   ];
 
   let allGood = true;
@@ -97,7 +105,7 @@ async function main() {
   const dbOk = await verifyDatabase();
 
   if (dbOk) {
-    console.log('\n✅ All 14 tables verified. Database is ready!');
+    console.log('\n✅ All 26 tables verified. Database is ready!');
   } else {
     console.log('\n⚠️  Some tables had issues. Check the output above.');
   }

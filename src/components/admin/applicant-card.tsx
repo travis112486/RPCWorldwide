@@ -38,6 +38,9 @@ export interface CastingRoleRow {
   name: string;
   description: string | null;
   sort_order: number;
+  role_type?: string | null;
+  union_requirement?: string | null;
+  pay_rate?: string | null;
 }
 
 interface ApplicantCardProps {

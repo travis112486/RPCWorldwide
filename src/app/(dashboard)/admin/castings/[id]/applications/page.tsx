@@ -17,6 +17,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import type { ApplicationRow, CastingRoleRow } from '@/components/admin/applicant-card';
 import { ShortlistTab } from '@/components/admin/shortlist-tab';
+import { RoleAttributeBadges } from '@/components/casting/RoleAttributeBadges';
 
 interface CastingDetail {
   title: string;
@@ -403,9 +404,19 @@ export default function AdminCastingApplicationsPage() {
                   <div className="flex flex-wrap gap-1.5">
                     {roles.map((role) => {
                       const count = applications.filter((a) => a.role_id === role.id).length;
+                      const hasAttributes = role.role_type || role.union_requirement || role.pay_rate;
                       return (
                         <Badge key={role.id} variant="outline" className="text-[10px] sm:text-xs">
-                          {role.name} ({count})
+                          <span className="flex items-center gap-1.5">
+                            <span>{role.name}</span>
+                            {hasAttributes && (
+                              <>
+                                <span className="text-muted-foreground">—</span>
+                                <RoleAttributeBadges role={role} mode="compact" as="span" />
+                              </>
+                            )}
+                            <span className="text-muted-foreground">({count})</span>
+                          </span>
                         </Badge>
                       );
                     })}

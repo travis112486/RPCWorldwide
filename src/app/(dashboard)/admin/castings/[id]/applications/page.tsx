@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
@@ -115,7 +115,13 @@ function formatDate(dateStr: string | null) {
 
 export default function AdminCastingApplicationsPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const castingId = params.id as string;
+
+  // Read pre-filter params from URL (e.g. from overview page pipeline links)
+  const initialStatus = searchParams.get('status') ?? '';
+  const initialRoleId = searchParams.get('role_id') ?? '';
+  const initialViewedFilter = searchParams.get('viewed') === 'no';
 
   const [casting, setCasting] = useState<CastingDetail | null>(null);
   const [roles, setRoles] = useState<CastingRoleRow[]>([]);
@@ -123,8 +129,9 @@ export default function AdminCastingApplicationsPage() {
   const [avatars, setAvatars] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
+  const [roleFilter, setRoleFilter] = useState(initialRoleId);
+  const [unviewedOnly, setUnviewedOnly] = useState(initialViewedFilter);
   const [showDescription, setShowDescription] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(loadAppViewMode);
   const [autofillEnabled, setAutofillEnabled] = useState(false);
@@ -354,7 +361,8 @@ export default function AdminCastingApplicationsPage() {
 
   const filtered = applications
     .filter((a) => !statusFilter || a.status === statusFilter)
-    .filter((a) => !roleFilter || a.role_id === roleFilter)
+    .filter((a) => !roleFilter || (roleFilter === 'none' ? !a.role_id : a.role_id === roleFilter))
+    .filter((a) => !unviewedOnly || !a.viewed_at)
     .filter((a) => {
       if (!autofillEnabled || activeCriteriaCount === 0) return true;
       const profile: TalentProfile = {
@@ -377,11 +385,11 @@ export default function AdminCastingApplicationsPage() {
     <DashboardLayout role="admin">
       <div className="space-y-4 sm:space-y-6">
         {/* Back link */}
-        <Link href="/admin/castings" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <Link href={`/admin/castings/${castingId}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
-          Back to Castings
+          Back to Overview
         </Link>
 
         {/* Error banner */}

@@ -104,7 +104,14 @@ export function MediaRequestForm({ castingId, roles, currentUserId, onSuccess, o
         return;
       }
 
-      // Step 4: Toast confirmation
+      // Step 4: Notify recipients via email (fire-and-forget)
+      fetch('/api/admin/media-requests/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mediaRequestId: request.id }),
+      }).catch(() => { /* notification failure should not block UX */ });
+
+      // Step 5: Toast confirmation
       toast(`Request sent to ${selectedUserIds.length} recipient${selectedUserIds.length !== 1 ? 's' : ''}`, 'success');
       onSuccess();
     } catch (err) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,13 +29,19 @@ export function MediaRequestForm({ castingId, roles, currentUserId, onSuccess, o
   const supabase = createClient();
   const { toast } = useToast();
 
+  // Clear selected recipients when role filter changes
+  useEffect(() => {
+    setSelectedUserIds([]);
+  }, [roleId]);
+
   function validate(): boolean {
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = 'Name is required';
     if (selectedUserIds.length === 0) errs.recipients = 'Select at least one recipient';
     if (deadline) {
-      const deadlineDate = new Date(deadline);
-      if (deadlineDate <= new Date()) errs.deadline = 'Deadline must be in the future';
+      // Compare date-only values to avoid timezone issues
+      const today = new Date().toISOString().slice(0, 10);
+      if (deadline < today) errs.deadline = 'Deadline must be today or later';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;

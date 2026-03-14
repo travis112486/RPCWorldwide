@@ -3,6 +3,15 @@
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://rpcworldwide.com';
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function layout(content: string, unsubscribeUrl: string) {
   return `<!DOCTYPE html>
 <html>
@@ -115,18 +124,22 @@ export function mediaRequestEmail(params: {
   const unsubscribeUrl = `${BASE_URL}/talent/settings`;
 
   const instructionsBlock = params.instructions
-    ? `<div style="margin: 16px 0; padding: 16px; background: #f9f9f9; border-left: 3px solid #c9a54e; border-radius: 4px;"><p style="margin: 0; white-space: pre-line;">${params.instructions}</p></div>`
+    ? `<div style="margin: 16px 0; padding: 16px; background: #f9f9f9; border-left: 3px solid #c9a54e; border-radius: 4px;"><p style="margin: 0; white-space: pre-line;">${escapeHtml(params.instructions)}</p></div>`
     : '';
 
   const deadlineBlock = params.deadline
     ? `<p>Please respond by <strong>${new Date(params.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong>.</p>`
     : '';
 
+  const safeName = escapeHtml(params.talentName);
+  const safeTitle = escapeHtml(params.castingTitle);
+  const safeRequestName = escapeHtml(params.requestName);
+
   const content = `
     <h2 style="margin-top: 0;">New Media Request</h2>
-    <p>Hi ${params.talentName},</p>
-    <p>You've received a media request for <strong>${params.castingTitle}</strong>:</p>
-    <p style="font-size: 18px; font-weight: bold; color: #c9a54e;">${params.requestName}</p>
+    <p>Hi ${safeName},</p>
+    <p>You've received a media request for <strong>${safeTitle}</strong>:</p>
+    <p style="font-size: 18px; font-weight: bold; color: #c9a54e;">${safeRequestName}</p>
     ${instructionsBlock}
     ${deadlineBlock}
     <p>Log in to view and respond to this request.</p>
@@ -136,7 +149,7 @@ export function mediaRequestEmail(params: {
   `;
 
   return {
-    subject: `Media Request: ${params.requestName} — ${params.castingTitle}`,
+    subject: `Media Request: ${safeRequestName} — ${safeTitle}`,
     html: layout(content, unsubscribeUrl),
   };
 }

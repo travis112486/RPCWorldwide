@@ -9,6 +9,7 @@ export const maxDuration = 60;
 
 const MAX_RECIPIENTS = 500;
 const CHUNK_SIZE = 10;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * POST /api/admin/media-requests/notify
@@ -30,8 +31,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { mediaRequestId } = body as { mediaRequestId: string };
 
-    if (!mediaRequestId) {
-      return NextResponse.json({ error: 'Missing mediaRequestId' }, { status: 400 });
+    if (!mediaRequestId || !UUID_RE.test(mediaRequestId)) {
+      return NextResponse.json({ error: 'Invalid or missing mediaRequestId' }, { status: 400 });
     }
 
     // Fetch media request with casting title
@@ -81,16 +82,13 @@ export async function POST(request: NextRequest) {
     let sent = 0;
     let failed = 0;
 
-    // Process in parallel chunks
+    // Process in parallel chunks, collecting results to avoid concurrent counter mutation
     for (let i = 0; i < eligible.length; i += CHUNK_SIZE) {
       const chunk = eligible.slice(i, i + CHUNK_SIZE);
-      await Promise.all(chunk.map(async (recipient) => {
+      const results = await Promise.all(chunk.map(async (recipient): Promise<'sent' | 'failed'> => {
         try {
           const { data: { user: authUser } } = await serviceClient.auth.admin.getUserById(recipient.user_id);
-          if (!authUser?.email) {
-            failed++;
-            return;
-          }
+          if (!authUser?.email) return 'failed';
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const profile = recipient.profiles as any;
@@ -105,15 +103,13 @@ export async function POST(request: NextRequest) {
           });
 
           const result = await sendEmail({ to: authUser.email, ...emailData });
-          if (result.success) {
-            sent++;
-          } else {
-            failed++;
-          }
+          return result.success ? 'sent' : 'failed';
         } catch {
-          failed++;
+          return 'failed';
         }
       }));
+      sent += results.filter((r) => r === 'sent').length;
+      failed += results.filter((r) => r === 'failed').length;
     }
 
     return NextResponse.json({ sent, skipped, failed });

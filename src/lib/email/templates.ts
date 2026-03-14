@@ -104,6 +104,43 @@ export function castingInvitationEmail(params: {
   };
 }
 
+export function mediaRequestEmail(params: {
+  talentName: string;
+  castingTitle: string;
+  requestName: string;
+  instructions: string | null;
+  deadline: string | null;
+}) {
+  const appUrl = `${BASE_URL}/talent/applications`;
+  const unsubscribeUrl = `${BASE_URL}/talent/settings`;
+
+  const instructionsBlock = params.instructions
+    ? `<div style="margin: 16px 0; padding: 16px; background: #f9f9f9; border-left: 3px solid #c9a54e; border-radius: 4px;"><p style="margin: 0; white-space: pre-line;">${params.instructions}</p></div>`
+    : '';
+
+  const deadlineBlock = params.deadline
+    ? `<p>Please respond by <strong>${new Date(params.deadline).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</strong>.</p>`
+    : '';
+
+  const content = `
+    <h2 style="margin-top: 0;">New Media Request</h2>
+    <p>Hi ${params.talentName},</p>
+    <p>You've received a media request for <strong>${params.castingTitle}</strong>:</p>
+    <p style="font-size: 18px; font-weight: bold; color: #c9a54e;">${params.requestName}</p>
+    ${instructionsBlock}
+    ${deadlineBlock}
+    <p>Log in to view and respond to this request.</p>
+    <p style="margin-top: 24px;">
+      <a href="${appUrl}" class="btn">View My Applications</a>
+    </p>
+  `;
+
+  return {
+    subject: `Media Request: ${params.requestName} — ${params.castingTitle}`,
+    html: layout(content, unsubscribeUrl),
+  };
+}
+
 export function invitationResponseEmail(params: {
   adminName: string;
   talentName: string;

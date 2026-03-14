@@ -36,7 +36,6 @@ export interface MediaRequestRow {
 
 interface MediaRequestListProps {
   requests: MediaRequestRow[];
-  castingId: string;
 }
 
 const REQUEST_STATUS_VARIANTS: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'secondary'> = {
@@ -97,7 +96,7 @@ function computeCounts(recipients: RecipientRow[]) {
   return counts;
 }
 
-export function MediaRequestList({ requests, castingId }: MediaRequestListProps) {
+export function MediaRequestList({ requests }: MediaRequestListProps) {
   const [expanded, setExpanded] = useState<{ requestId: string; status: MediaResponseStatus } | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -184,6 +183,7 @@ export function MediaRequestList({ requests, castingId }: MediaRequestListProps)
                       <button
                         type="button"
                         onClick={() => handleCountClick(req.id, s)}
+                        aria-label={`${counts[s]} ${RESPONSE_STATUS_LABELS[s]} recipients`}
                         className={`inline-flex h-6 min-w-[24px] items-center justify-center rounded-full px-1.5 text-xs font-semibold transition-colors ${
                           isExpanded && expanded?.status === s
                             ? 'bg-primary text-primary-foreground'
@@ -212,6 +212,7 @@ export function MediaRequestList({ requests, castingId }: MediaRequestListProps)
                       key={s}
                       type="button"
                       onClick={() => handleCountClick(req.id, s)}
+                      aria-label={`Show ${counts[s]} ${RESPONSE_STATUS_LABELS[s]} recipients`}
                       className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
                         isExpanded && expanded?.status === s
                           ? 'bg-primary text-primary-foreground'
@@ -252,7 +253,7 @@ export function MediaRequestList({ requests, castingId }: MediaRequestListProps)
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {r.status === 'declined' && r.decline_reason && (
-                              <span className="mr-2 text-destructive">{r.decline_reason}</span>
+                              <span className="mr-2 max-w-[200px] truncate text-destructive" title={r.decline_reason}>{r.decline_reason}</span>
                             )}
                             {r.responded_at ? formatDate(r.responded_at) : r.sent_at ? `Sent ${formatDate(r.sent_at)}` : ''}
                           </div>
@@ -267,7 +268,7 @@ export function MediaRequestList({ requests, castingId }: MediaRequestListProps)
       </div>
 
       {/* Pagination */}
-      {requests.length > 25 && (
+      {requests.length > pageSize && (
         <div className="flex flex-col items-center justify-between gap-2 sm:flex-row">
           <p className="text-xs text-muted-foreground">
             Showing {showingStart}–{showingEnd} of {requests.length} request{requests.length !== 1 ? 's' : ''}

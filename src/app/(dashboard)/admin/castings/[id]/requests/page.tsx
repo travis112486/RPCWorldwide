@@ -68,6 +68,11 @@ export default function CastingRequestsPage() {
         setLoading(false);
         return;
       }
+      if (requestsRes.error) {
+        setFetchError(`Failed to load requests: ${requestsRes.error.message}`);
+        setLoading(false);
+        return;
+      }
 
       setCastingTitle(castingRes.data.title);
       setRoles(rolesRes.data ?? []);
@@ -161,7 +166,7 @@ export default function CastingRequestsPage() {
             )}
           </div>
         ) : (
-          <MediaRequestList requests={requests} castingId={castingId} />
+          <MediaRequestList requests={requests} />
         )}
       </div>
     </DashboardLayout>

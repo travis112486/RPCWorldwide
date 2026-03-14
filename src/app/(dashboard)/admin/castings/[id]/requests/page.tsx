@@ -20,7 +20,7 @@ interface MediaRequestRow {
   role_id: string | null;
   sent_at: string | null;
   created_at: string;
-  casting_roles: { name: string }[] | null;
+  casting_roles: { name: string }[] | { name: string } | null;
   media_request_recipients: { count: number }[];
 }
 
@@ -200,14 +200,19 @@ export default function CastingRequestsPage() {
               <tbody>
                 {requests.map((req) => {
                   const recipientCount = req.media_request_recipients?.[0]?.count ?? 0;
+                  const roleName = req.casting_roles
+                    ? Array.isArray(req.casting_roles)
+                      ? req.casting_roles[0]?.name
+                      : req.casting_roles.name
+                    : null;
                   return (
                     <tr key={req.id} className="border-b border-border last:border-b-0 hover:bg-muted/30">
                       <td className="px-4 py-3">
                         <span className="font-medium text-foreground">{req.name}</span>
                       </td>
                       <td className="hidden px-4 py-3 sm:table-cell">
-                        {req.casting_roles && req.casting_roles.length > 0 ? (
-                          <Badge variant="outline" className="text-xs">{req.casting_roles[0].name}</Badge>
+                        {roleName ? (
+                          <Badge variant="outline" className="text-xs">{roleName}</Badge>
                         ) : (
                           <span className="text-muted-foreground">All</span>
                         )}

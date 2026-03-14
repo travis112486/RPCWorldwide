@@ -5,39 +5,15 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardLayout } from '@/components/layout';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { CastingSubNav } from '@/components/admin/casting-sub-nav';
 import { MediaRequestForm } from '@/components/admin/media-request-form';
-import type { MediaRequestStatus } from '@/types/database';
-
-interface MediaRequestRow {
-  id: string;
-  name: string;
-  status: MediaRequestStatus;
-  deadline: string | null;
-  role_id: string | null;
-  sent_at: string | null;
-  created_at: string;
-  casting_roles: { name: string }[] | { name: string } | null;
-  media_request_recipients: { count: number }[];
-}
+import { MediaRequestList, type MediaRequestRow } from '@/components/admin/media-request-list';
 
 interface RoleOption {
   id: string;
   name: string;
-}
-
-const statusVariants: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'secondary'> = {
-  draft: 'secondary',
-  sent: 'success',
-  closed: 'warning',
-};
-
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export default function CastingRequestsPage() {
@@ -82,7 +58,7 @@ export default function CastingRequestsPage() {
           .order('sort_order', { ascending: true }),
         supabase
           .from('media_requests')
-          .select('id, name, status, deadline, role_id, sent_at, created_at, casting_roles(name), media_request_recipients(count)')
+          .select('id, name, status, deadline, role_id, sent_at, created_at, casting_roles(name), media_request_recipients(id, user_id, status, sent_at, responded_at, decline_reason, profiles!user_id(display_name, first_name, last_name))')
           .eq('casting_call_id', castingId)
           .order('created_at', { ascending: false }),
       ]);
@@ -185,56 +161,7 @@ export default function CastingRequestsPage() {
             )}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border">
-            <table className="w-full text-sm">
-              <thead className="border-b border-border bg-muted/50">
-                <tr>
-                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Name</th>
-                  <th className="hidden px-4 py-2.5 text-left font-medium text-muted-foreground sm:table-cell">Role</th>
-                  <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Status</th>
-                  <th className="hidden px-4 py-2.5 text-left font-medium text-muted-foreground md:table-cell">Recipients</th>
-                  <th className="hidden px-4 py-2.5 text-left font-medium text-muted-foreground md:table-cell">Deadline</th>
-                  <th className="hidden px-4 py-2.5 text-left font-medium text-muted-foreground lg:table-cell">Sent</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map((req) => {
-                  const recipientCount = req.media_request_recipients?.[0]?.count ?? 0;
-                  const roleName = req.casting_roles
-                    ? Array.isArray(req.casting_roles)
-                      ? req.casting_roles[0]?.name
-                      : req.casting_roles.name
-                    : null;
-                  return (
-                    <tr key={req.id} className="border-b border-border last:border-b-0 hover:bg-muted/30">
-                      <td className="px-4 py-3">
-                        <span className="font-medium text-foreground">{req.name}</span>
-                      </td>
-                      <td className="hidden px-4 py-3 sm:table-cell">
-                        {roleName ? (
-                          <Badge variant="outline" className="text-xs">{roleName}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground">All</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge variant={statusVariants[req.status] ?? 'default'}>{req.status}</Badge>
-                      </td>
-                      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                        {recipientCount}
-                      </td>
-                      <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                        {formatDate(req.deadline)}
-                      </td>
-                      <td className="hidden px-4 py-3 text-muted-foreground lg:table-cell">
-                        {formatDate(req.sent_at)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <MediaRequestList requests={requests} castingId={castingId} />
         )}
       </div>
     </DashboardLayout>

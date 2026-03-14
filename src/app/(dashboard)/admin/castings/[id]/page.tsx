@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { useToast } from '@/components/ui/toast';
 import { RolePipelineCard, type RolePipelineCounts } from '@/components/admin/role-pipeline-card';
+import { CastingSubNav } from '@/components/admin/casting-sub-nav';
 import type { ApplicationRow, CastingRoleRow } from '@/components/admin/applicant-card';
 
 interface CastingDetail {
@@ -201,6 +202,9 @@ export default function CastingOverviewPage() {
             </Link>
           </div>
         </div>
+
+        {/* Sub-navigation */}
+        <CastingSubNav castingId={castingId} />
 
         {/* Summary stats */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

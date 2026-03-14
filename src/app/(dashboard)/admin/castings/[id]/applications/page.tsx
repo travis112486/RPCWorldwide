@@ -17,6 +17,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import type { ApplicationRow, CastingRoleRow } from '@/components/admin/applicant-card';
 import { ShortlistTab } from '@/components/admin/shortlist-tab';
+import { CastingSubNav } from '@/components/admin/casting-sub-nav';
 import { RoleAttributeBadges } from '@/components/casting/RoleAttributeBadges';
 import {
   type CriteriaOverrides,
@@ -384,13 +385,8 @@ export default function AdminCastingApplicationsPage() {
   return (
     <DashboardLayout role="admin">
       <div className="space-y-4 sm:space-y-6">
-        {/* Back link */}
-        <Link href={`/admin/castings/${castingId}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-          Back to Overview
-        </Link>
+        {/* Sub-navigation */}
+        <CastingSubNav castingId={castingId} />
 
         {/* Error banner */}
         {fetchError && (

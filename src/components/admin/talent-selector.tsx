@@ -92,7 +92,8 @@ export function TalentSelector({ castingId, roleId, selectedUserIds, onSelection
       setError(err instanceof Error ? err.message : 'Failed to load');
     }
     setLoading(false);
-  }, [castingId, roleId, source, supabase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [castingId, roleId, source]);
 
   useEffect(() => { loadTalents(); }, [loadTalents]);
 

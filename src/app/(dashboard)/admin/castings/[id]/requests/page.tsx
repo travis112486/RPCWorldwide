@@ -166,7 +166,7 @@ export default function CastingRequestsPage() {
             )}
           </div>
         ) : (
-          <MediaRequestList requests={requests} castingId={castingId} />
+          <MediaRequestList requests={requests} castingId={castingId} totalCount={requests.length} />
         )}
       </div>
     </DashboardLayout>

@@ -39,7 +39,7 @@ interface MediaRequestListProps {
   requests: MediaRequestRow[];
   castingId: string;
   /** Total count of all requests for this casting (for computing round numbers when paginated) */
-  totalCount?: number;
+  totalCount: number;
 }
 
 const REQUEST_STATUS_VARIANTS: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'secondary'> = {

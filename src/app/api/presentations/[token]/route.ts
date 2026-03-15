@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as Sentry from '@sentry/nextjs';
 import { createServiceRoleClient } from '@/lib/supabase/auth-helpers';
+import { apiLimiter, rateLimitResponse } from '@/lib/rate-limit';
 
 /**
  * GET /api/presentations/[token]
@@ -64,6 +65,7 @@ export async function GET(
     // Fetch talent data based on presentation type
     interface TalentData {
       id: string;
+      applicationId: string;
       displayName: string;
       bio: string | null;
       city: string | null;
@@ -130,6 +132,7 @@ export async function GET(
             }
             return {
               id: app.user_id,
+              applicationId: app.id,
               displayName: name,
               bio: profile?.bio ?? null,
               city: profile?.city ?? null,
@@ -152,7 +155,7 @@ export async function GET(
 
       // For live presentations, return session names (talent comes from session groups, future feature)
       return NextResponse.json({
-        presentation: { name: presentation.name, castingTitle, type: presentation.type },
+        presentation: { name: presentation.name, castingTitle, type: presentation.type, allowFeedback: presentation.allow_feedback },
         sessions: (pressSessions ?? []).map((s) => ({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           name: (s.sessions as any)?.name ?? 'Session',
@@ -162,9 +165,117 @@ export async function GET(
     }
 
     return NextResponse.json({
-      presentation: { name: presentation.name, castingTitle, type: presentation.type },
+      presentation: { name: presentation.name, castingTitle, type: presentation.type, allowFeedback: presentation.allow_feedback },
       talents,
     });
+  } catch (error) {
+    Sentry.captureException(error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/presentations/[token]
+ *
+ * Submit feedback for a talent in a presentation.
+ * Uses service role client — no auth required, token acts as credential.
+ *
+ * Body: { applicationId, rating?, comment?, viewerName? }
+ * Headers: X-Presentation-Password (for password-protected presentations)
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ token: string }> },
+) {
+  try {
+    const { token } = await params;
+    if (!token) {
+      return NextResponse.json({ error: 'Token required' }, { status: 400 });
+    }
+
+    // Rate limit by IP
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    const rateResult = apiLimiter.check(ip);
+    if (!rateResult.success) return rateLimitResponse(rateResult.retryAfter);
+
+    const supabase = createServiceRoleClient();
+
+    // Validate presentation
+    const { data: presentation } = await supabase
+      .from('presentations')
+      .select('id, password, is_active, expires_at, allow_feedback')
+      .eq('access_token', token)
+      .single();
+
+    if (!presentation) {
+      return NextResponse.json({ error: 'Presentation not found' }, { status: 404 });
+    }
+    if (!presentation.is_active) {
+      return NextResponse.json({ error: 'Presentation is no longer available' }, { status: 404 });
+    }
+    if (presentation.expires_at && new Date(presentation.expires_at) < new Date()) {
+      return NextResponse.json({ error: 'Presentation has expired' }, { status: 404 });
+    }
+    if (!presentation.allow_feedback) {
+      return NextResponse.json({ error: 'Feedback is not enabled for this presentation' }, { status: 403 });
+    }
+
+    // Password check
+    if (presentation.password) {
+      const providedPassword = request.headers.get('X-Presentation-Password');
+      if (!providedPassword || providedPassword !== presentation.password) {
+        return NextResponse.json({ error: 'Invalid password' }, { status: 403 });
+      }
+    }
+
+    // Parse body
+    const body = await request.json();
+    const { applicationId, rating, comment, viewerName } = body as {
+      applicationId: string;
+      rating?: number;
+      comment?: string;
+      viewerName?: string;
+    };
+
+    if (!applicationId) {
+      return NextResponse.json({ error: 'applicationId is required' }, { status: 400 });
+    }
+
+    // Validate rating range
+    if (rating !== undefined && (rating < 1 || rating > 5 || !Number.isInteger(rating))) {
+      return NextResponse.json({ error: 'Rating must be an integer between 1 and 5' }, { status: 400 });
+    }
+
+    // Verify applicationId belongs to this presentation
+    const { data: item } = await supabase
+      .from('presentation_items')
+      .select('id')
+      .eq('presentation_id', presentation.id)
+      .eq('application_id', applicationId)
+      .single();
+
+    if (!item) {
+      return NextResponse.json({ error: 'Talent not found in this presentation' }, { status: 404 });
+    }
+
+    // Insert feedback
+    const { data: feedback, error: insertErr } = await supabase
+      .from('presentation_feedback')
+      .insert({
+        presentation_id: presentation.id,
+        application_id: applicationId,
+        viewer_name: viewerName?.trim() || null,
+        rating: rating ?? null,
+        comment: comment?.trim() || null,
+      })
+      .select('id')
+      .single();
+
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ id: feedback?.id }, { status: 201 });
   } catch (error) {
     Sentry.captureException(error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -38,6 +38,8 @@ export interface MediaRequestRow {
 interface MediaRequestListProps {
   requests: MediaRequestRow[];
   castingId: string;
+  /** Total count of all requests for this casting (for computing round numbers when paginated) */
+  totalCount?: number;
 }
 
 const REQUEST_STATUS_VARIANTS: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'secondary'> = {
@@ -98,7 +100,10 @@ function computeCounts(recipients: RecipientRow[]) {
   return counts;
 }
 
-export function MediaRequestList({ requests, castingId }: MediaRequestListProps) {
+export function MediaRequestList({ requests, castingId, totalCount }: MediaRequestListProps) {
+  // Compute round numbers: requests are sorted DESC (newest first), so R1 = oldest
+  const total = totalCount ?? requests.length;
+
   const [expanded, setExpanded] = useState<{ requestId: string; status: MediaResponseStatus } | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -127,7 +132,8 @@ export function MediaRequestList({ requests, castingId }: MediaRequestListProps)
       {/* Request rows */}
       <div className="space-y-0 overflow-hidden rounded-lg border border-border">
         {/* Header */}
-        <div className="hidden border-b border-border bg-muted/50 px-4 py-2.5 md:grid md:grid-cols-[1fr_100px_80px_repeat(5,60px)_90px] md:items-center md:gap-2">
+        <div className="hidden border-b border-border bg-muted/50 px-4 py-2.5 md:grid md:grid-cols-[50px_1fr_100px_80px_repeat(5,60px)_90px] md:items-center md:gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Round</span>
           <span className="text-xs font-medium text-muted-foreground">Name</span>
           <span className="text-xs font-medium text-muted-foreground">Type</span>
           <span className="text-xs font-medium text-muted-foreground">Status</span>
@@ -139,18 +145,28 @@ export function MediaRequestList({ requests, castingId }: MediaRequestListProps)
           <span className="text-xs font-medium text-muted-foreground">Last Sent</span>
         </div>
 
-        {pagedRequests.map((req) => {
+        {pagedRequests.map((req, idx) => {
           const counts = computeCounts(req.media_request_recipients);
           const roleName = getRoleName(req.casting_roles);
           const isExpanded = expanded?.requestId === req.id;
           const totalRecipients = req.media_request_recipients.length;
+          // Requests are sorted DESC (newest first). Round = total - absolute_index.
+          const roundNumber = total - (page * pageSize + idx);
 
           return (
             <div key={req.id} className="border-b border-border last:border-b-0">
               {/* Main row */}
-              <div className="px-4 py-3 hover:bg-muted/30 md:grid md:grid-cols-[1fr_100px_80px_repeat(5,60px)_90px] md:items-center md:gap-2">
+              <div className="px-4 py-3 hover:bg-muted/30 md:grid md:grid-cols-[50px_1fr_100px_80px_repeat(5,60px)_90px] md:items-center md:gap-2">
+                {/* Round */}
+                <div className="hidden md:block">
+                  <Badge variant="outline" className="text-xs font-semibold">R{roundNumber}</Badge>
+                </div>
+
                 {/* Name + role (mobile shows inline) */}
                 <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px] font-semibold md:hidden">R{roundNumber}</Badge>
+                  </div>
                   <Link
                     href={`/admin/castings/${castingId}/requests/${req.id}`}
                     className="font-medium text-foreground hover:text-brand-secondary hover:underline"

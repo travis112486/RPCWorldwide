@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { AddToProjectModal } from '@/components/admin/add-to-project-modal';
 
 const PAGE_SIZE = 100;
 const SORT_OPTIONS = [
@@ -71,6 +72,7 @@ export function TalentSearchResults() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sort, setSort] = useState('random');
+  const [addModalTalent, setAddModalTalent] = useState<{ id: string; name: string } | null>(null);
   const seedRef = useRef<number>(Date.now() % 2147483647);
 
   const page = parseInt(searchParams.get('page') ?? '1', 10) - 1;
@@ -380,29 +382,32 @@ export function TalentSearchResults() {
             const loc = [r.city, r.state].filter(Boolean).join(', ');
 
             return (
-              <Link
+              <div
                 key={r.id}
-                href={`/admin/users/${r.id}`}
                 className="group rounded-lg border border-border bg-card transition-shadow hover:shadow-md"
               >
                 {/* Photo */}
-                <div className="aspect-[3/4] overflow-hidden rounded-t-lg bg-muted">
-                  {r.photoUrl ? (
-                    <img
-                      src={r.photoUrl}
-                      alt={name}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-muted-foreground/40">
-                      {getInitials(name)}
-                    </div>
-                  )}
-                </div>
+                <Link href={`/admin/users/${r.id}`}>
+                  <div className="aspect-[3/4] overflow-hidden rounded-t-lg bg-muted">
+                    {r.photoUrl ? (
+                      <img
+                        src={r.photoUrl}
+                        alt={name}
+                        className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-3xl font-bold text-muted-foreground/40">
+                        {getInitials(name)}
+                      </div>
+                    )}
+                  </div>
+                </Link>
 
                 {/* Info */}
                 <div className="p-3 space-y-1">
-                  <p className="truncate font-medium text-foreground text-sm">{name}</p>
+                  <Link href={`/admin/users/${r.id}`} className="truncate font-medium text-foreground text-sm hover:text-brand-secondary hover:underline block">
+                    {name}
+                  </Link>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     {age !== null && <span>{age}yo</span>}
                     {age !== null && loc && <span>·</span>}
@@ -419,8 +424,15 @@ export function TalentSearchResults() {
                       <Badge key={t} variant="secondary" className="text-[9px]">{t}</Badge>
                     ))}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setAddModalTalent({ id: r.id, name })}
+                    className="mt-2 w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    Add To Project
+                  </button>
                 </div>
-              </Link>
+              </div>
             );
           })}
         </div>
@@ -451,6 +463,17 @@ export function TalentSearchResults() {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Add to Project modal */}
+      {addModalTalent && (
+        <AddToProjectModal
+          open={!!addModalTalent}
+          onClose={() => setAddModalTalent(null)}
+          talentId={addModalTalent.id}
+          talentName={addModalTalent.name}
+          onSuccess={() => setAddModalTalent(null)}
+        />
       )}
     </div>
   );

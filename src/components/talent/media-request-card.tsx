@@ -99,6 +99,7 @@ export function MediaRequestCard({ recipient, currentUserId, onUpdate }: MediaRe
   const castingTitle = getCastingTitle(request);
   const deadlinePast = isDeadlinePast(request?.deadline ?? null);
   const submissions = recipient.media_request_submissions ?? [];
+  const isRequestClosed = request?.status === 'closed';
 
   async function handleConfirm() {
     setUpdating(true);
@@ -244,7 +245,10 @@ export function MediaRequestCard({ recipient, currentUserId, onUpdate }: MediaRe
               <Badge variant={STATUS_VARIANTS[recipient.status] ?? 'default'}>
                 {STATUS_LABELS[recipient.status] ?? recipient.status}
               </Badge>
-              {request.deadline && (
+              {isRequestClosed && (
+                <Badge variant="secondary">Closed</Badge>
+              )}
+              {request.deadline && !isRequestClosed && (
                 <span className={`text-xs ${deadlinePast ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
                   {deadlinePast ? 'Past due' : `Due ${formatDate(request.deadline)}`}
                 </span>
@@ -261,8 +265,17 @@ export function MediaRequestCard({ recipient, currentUserId, onUpdate }: MediaRe
             </div>
           )}
 
+          {/* Request closed notice */}
+          {isRequestClosed && (recipient.status === 'pending' || recipient.status === 'confirmed') && (
+            <div className="rounded-lg bg-muted/50 p-3">
+              <p className="text-sm text-muted-foreground">
+                This request has been closed by the casting director. No further submissions are accepted.
+              </p>
+            </div>
+          )}
+
           {/* Pending: Confirm / Decline */}
-          {recipient.status === 'pending' && (
+          {recipient.status === 'pending' && !isRequestClosed && (
             <div className="flex gap-2">
               <Button onClick={handleConfirm} loading={updating} disabled={updating} size="sm">
                 Confirm
@@ -279,7 +292,7 @@ export function MediaRequestCard({ recipient, currentUserId, onUpdate }: MediaRe
           )}
 
           {/* Confirmed: Upload widget */}
-          {recipient.status === 'confirmed' && (
+          {recipient.status === 'confirmed' && !isRequestClosed && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Upload your self-tape video or photo to complete this request.

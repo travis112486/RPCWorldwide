@@ -29,10 +29,15 @@ export async function POST(request: NextRequest) {
     if (!rateResult.success) return rateLimitResponse(rateResult.retryAfter);
 
     const body = await request.json();
-    const { mediaRequestId } = body as { mediaRequestId: string };
+    const { mediaRequestId, recipientStatus } = body as { mediaRequestId: string; recipientStatus?: string };
 
     if (!mediaRequestId || !UUID_RE.test(mediaRequestId)) {
       return NextResponse.json({ error: 'Invalid or missing mediaRequestId' }, { status: 400 });
+    }
+
+    const validStatuses = ['not_sent', 'pending', 'confirmed', 'declined', 'received'];
+    if (recipientStatus && !validStatuses.includes(recipientStatus)) {
+      return NextResponse.json({ error: 'Invalid recipientStatus' }, { status: 400 });
     }
 
     // Fetch media request with casting title
@@ -51,10 +56,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch recipients with profile data (for name + notification preference)
-    const { data: recipients } = await supabase
+    let recipientQuery = supabase
       .from('media_request_recipients')
       .select('id, user_id, profiles!user_id(first_name, display_name, notify_casting_invites)')
       .eq('media_request_id', mediaRequestId);
+
+    if (recipientStatus) {
+      recipientQuery = recipientQuery.eq('status', recipientStatus);
+    }
+
+    const { data: recipients } = await recipientQuery;
 
     if (!recipients || recipients.length === 0) {
       return NextResponse.json({ sent: 0, skipped: 0 });
@@ -100,6 +111,7 @@ export async function POST(request: NextRequest) {
             requestName: mediaRequest.name,
             instructions: mediaRequest.instructions,
             deadline: mediaRequest.deadline,
+            isReminder: !!recipientStatus,
           });
 
           const result = await sendEmail({ to: authUser.email, ...emailData });

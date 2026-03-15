@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Modal } from '@/components/ui/modal';
 import { CastingSubNav } from '@/components/admin/casting-sub-nav';
 import { ReceivedMediaGrid, type RecipientWithMedia } from '@/components/admin/received-media-grid';
+import { useToast } from '@/components/ui/toast';
 import type { MediaResponseStatus } from '@/types/database';
 
 interface MediaRequestDetail {
@@ -53,9 +54,50 @@ export default function MediaViewerPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
   const [playingVideo, setPlayingVideo] = useState<{ url: string; name: string } | null>(null);
+  const [resending, setResending] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   const router = useRouter();
   const supabase = createClient();
+  const { toast } = useToast();
+
+  const isClosed = mediaRequest?.status === 'closed';
+
+  async function handleResend() {
+    setResending(true);
+    try {
+      const res = await fetch('/api/admin/media-requests/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mediaRequestId: requestId, recipientStatus: 'pending' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast(data.error || 'Failed to resend', 'error');
+      } else {
+        toast(`Reminder sent to ${data.sent} pending recipient${data.sent !== 1 ? 's' : ''}`, 'success');
+      }
+    } catch {
+      toast('Network error', 'error');
+    }
+    setResending(false);
+  }
+
+  async function handleClose() {
+    setClosing(true);
+    const { error } = await supabase
+      .from('media_requests')
+      .update({ status: 'closed' })
+      .eq('id', requestId);
+
+    if (error) {
+      toast('Failed to close request', 'error');
+    } else {
+      toast('Request closed — no new submissions will be accepted', 'success');
+      loadData();
+    }
+    setClosing(false);
+  }
 
   const loadData = useCallback(async () => {
     setFetchError(null);
@@ -215,10 +257,40 @@ export default function MediaViewerPage() {
             <Link href={`/admin/castings/${castingId}/requests`} className="hover:text-foreground">Requests</Link>
             <span>/</span>
           </div>
-          <h1 className="mt-1 text-2xl font-bold text-foreground">{mediaRequest.name}</h1>
-          {mediaRequest.deadline && (
-            <p className="mt-0.5 text-sm text-muted-foreground">Deadline: {formatDate(mediaRequest.deadline)}</p>
-          )}
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="mt-1 text-2xl font-bold text-foreground">{mediaRequest.name}</h1>
+              {mediaRequest.deadline && (
+                <p className="mt-0.5 text-sm text-muted-foreground">Deadline: {formatDate(mediaRequest.deadline)}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {isClosed ? (
+                <Badge variant="secondary">Closed</Badge>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResend}
+                    loading={resending}
+                    disabled={resending || pendingCount === 0}
+                  >
+                    Resend to Pending ({pendingCount})
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleClose}
+                    loading={closing}
+                    disabled={closing}
+                  >
+                    Close Request
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Sub-navigation */}

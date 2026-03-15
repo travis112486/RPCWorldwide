@@ -9,6 +9,7 @@ import { Modal } from '@/components/ui/modal';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
 import { uploadFileSecure } from '@/lib/upload/client';
+import { checkUploadRateLimit } from '@/lib/utils/upload-rate-limit';
 import type { MediaResponseStatus } from '@/types/database';
 
 interface SubmissionData {
@@ -148,6 +149,15 @@ export function MediaRequestCard({ recipient, currentUserId, onUpdate }: MediaRe
     setUploading(true);
     setUploadProgress(0);
 
+    // Rate limit check
+    try {
+      await checkUploadRateLimit();
+    } catch (err) {
+      toast((err as Error).message, 'error');
+      setUploading(false);
+      return;
+    }
+
     // Step 1: Upload to self-tapes bucket
     const uploadResult = await uploadFileSecure({
       file,
@@ -191,16 +201,26 @@ export function MediaRequestCard({ recipient, currentUserId, onUpdate }: MediaRe
       });
 
     if (subErr) {
+      // Cleanup orphaned media record and storage file
+      await supabase.from('media').delete().eq('id', mediaRecord.id);
+      await supabase.storage.from('self-tapes').remove([uploadResult.path!]);
       toast('Failed to create submission', 'error');
       setUploading(false);
       return;
     }
 
     // Step 4: Update recipient status to received
-    await supabase
+    const { error: statusErr } = await supabase
       .from('media_request_recipients')
       .update({ status: 'received', responded_at: new Date().toISOString() })
       .eq('id', recipient.id);
+
+    if (statusErr) {
+      toast('Submission saved but status update failed. Please try again.', 'error');
+      setUploading(false);
+      onUpdate();
+      return;
+    }
 
     toast('Self-tape submitted successfully', 'success');
     setUploading(false);

@@ -32,6 +32,7 @@ export interface RecipientWithMedia {
   user_id: string;
   status: MediaResponseStatus;
   responded_at: string | null;
+  decline_reason: string | null;
   profiles: ProfileData | ProfileData[] | null;
   media_request_submissions: SubmissionData[];
   avatarUrl: string | null;
@@ -132,13 +133,12 @@ export function ReceivedMediaGrid({ recipients, onPlayVideo }: ReceivedMediaGrid
                     </div>
                   </button>
                 ) : (
-                  // Image submission
-                  <Image
+                  // Image submission — use <img> because signed URLs aren't in next.config remotePatterns
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
                     src={mediaUrl}
                     alt={`Submission from ${name}`}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                    className="object-cover"
+                    className="h-full w-full object-cover"
                   />
                 )
               ) : r.status === 'received' ? (

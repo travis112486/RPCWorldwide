@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { SavedSearches } from '@/components/admin/saved-searches';
 import {
   GENDER_OPTIONS,
   TALENT_TYPE_OPTIONS,
@@ -21,7 +22,7 @@ import {
 } from '@/constants/profile';
 
 // Filter keys that map to URL search params
-const FILTER_KEYS = [
+export const FILTER_KEYS = [
   'q', 'talent_type', 'gender', 'ethnicity', 'union',
   'location', 'age_min', 'age_max', 'height_min', 'height_max',
   'weight_min', 'weight_max', 'eye_color', 'hair_color', 'hair_length',
@@ -30,7 +31,7 @@ const FILTER_KEYS = [
   'shoe_size', 'agency', 'willing_to_travel', 'has_passport',
 ] as const;
 
-type FilterKey = typeof FILTER_KEYS[number];
+export type FilterKey = typeof FILTER_KEYS[number];
 
 const FILTER_LABELS: Record<FilterKey, string> = {
   q: 'Search', talent_type: 'Talent Type', gender: 'Gender',
@@ -123,6 +124,9 @@ export function TalentSearchFilters() {
 
   return (
     <div className="space-y-4">
+      {/* Saved searches */}
+      <SavedSearches />
+
       {/* Basic filter bar */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Input

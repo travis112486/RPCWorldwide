@@ -119,6 +119,7 @@ export function mediaRequestEmail(params: {
   requestName: string;
   instructions: string | null;
   deadline: string | null;
+  isReminder?: boolean;
 }) {
   const appUrl = `${BASE_URL}/talent/applications`;
   const unsubscribeUrl = `${BASE_URL}/talent/settings`;
@@ -135,10 +136,15 @@ export function mediaRequestEmail(params: {
   const safeTitle = escapeHtml(params.castingTitle);
   const safeRequestName = escapeHtml(params.requestName);
 
+  const heading = params.isReminder ? 'Reminder: Media Request' : 'New Media Request';
+  const intro = params.isReminder
+    ? `This is a friendly reminder that you have a pending media request for <strong>${safeTitle}</strong>:`
+    : `You've received a media request for <strong>${safeTitle}</strong>:`;
+
   const content = `
-    <h2 style="margin-top: 0;">New Media Request</h2>
+    <h2 style="margin-top: 0;">${heading}</h2>
     <p>Hi ${safeName},</p>
-    <p>You've received a media request for <strong>${safeTitle}</strong>:</p>
+    <p>${intro}</p>
     <p style="font-size: 18px; font-weight: bold; color: #c9a54e;">${safeRequestName}</p>
     ${instructionsBlock}
     ${deadlineBlock}
@@ -149,7 +155,7 @@ export function mediaRequestEmail(params: {
   `;
 
   return {
-    subject: `Media Request: ${safeRequestName} — ${safeTitle}`,
+    subject: `${params.isReminder ? 'Reminder — ' : ''}Media Request: ${safeRequestName} — ${safeTitle}`,
     html: layout(content, unsubscribeUrl),
   };
 }

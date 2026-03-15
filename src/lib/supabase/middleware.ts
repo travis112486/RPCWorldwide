@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/nextjs';
 import { authPageLimiter, rateLimitResponse, getClientIp } from '@/lib/rate-limit';
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/castings', '/about', '/contact', '/terms', '/privacy'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/reset-password', '/castings', '/about', '/contact', '/terms', '/privacy', '/presentations'];
 
 // Auth page routes that should be rate-limited at the middleware level
 const RATE_LIMITED_AUTH_PAGES = ['/login', '/register', '/forgot-password', '/reset-password'];
@@ -13,7 +13,7 @@ const RATE_LIMITED_AUTH_PAGES = ['/login', '/register', '/forgot-password', '/re
 const AUTH_ROUTES = ['/login', '/register'];
 
 function isPublicRoute(pathname: string) {
-  return PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith('/castings/'));
+  return PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith('/castings/') || pathname.startsWith('/presentations/'));
 }
 
 function isAuthRoute(pathname: string) {

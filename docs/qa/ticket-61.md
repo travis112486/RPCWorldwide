@@ -24,7 +24,7 @@ Reviewed 4 files implementing the presentations tab for casting projects — sub
 None.
 
 ### Recommendations
-- The `creatorName` field on PresentationRow is set to empty string — could join profiles for display. Non-blocking for v1.
+- ~~The `creatorName` field on PresentationRow is set to empty string — could join profiles for display.~~ **FIXED**: Joined `profiles!created_by` in query, added Creator column to list.
 
 ### Verdict
 **APPROVE**

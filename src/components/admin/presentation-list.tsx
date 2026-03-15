@@ -94,11 +94,12 @@ export function PresentationList({ presentations, onRefresh }: PresentationListP
   return (
     <div className="space-y-0 overflow-hidden rounded-lg border border-border">
       {/* Header */}
-      <div className="hidden border-b border-border bg-muted/50 px-4 py-2.5 md:grid md:grid-cols-[1fr_80px_70px_90px_100px_140px] md:items-center md:gap-3">
+      <div className="hidden border-b border-border bg-muted/50 px-4 py-2.5 md:grid md:grid-cols-[1fr_80px_70px_90px_90px_100px_140px] md:items-center md:gap-3">
         <span className="text-xs font-medium text-muted-foreground">Name</span>
         <span className="text-xs font-medium text-muted-foreground">Type</span>
         <span className="text-xs font-medium text-muted-foreground">Count</span>
         <span className="text-xs font-medium text-muted-foreground">Modified</span>
+        <span className="text-xs font-medium text-muted-foreground">Creator</span>
         <span className="text-xs font-medium text-muted-foreground">Active</span>
         <span className="text-xs font-medium text-muted-foreground">Actions</span>
       </div>
@@ -108,7 +109,7 @@ export function PresentationList({ presentations, onRefresh }: PresentationListP
         const count = p.type === 'live' ? p.sessionCount : p.itemCount;
 
         return (
-          <div key={p.id} className="border-b border-border px-4 py-3 last:border-b-0 hover:bg-muted/30 md:grid md:grid-cols-[1fr_80px_70px_90px_100px_140px] md:items-center md:gap-3">
+          <div key={p.id} className="border-b border-border px-4 py-3 last:border-b-0 hover:bg-muted/30 md:grid md:grid-cols-[1fr_80px_70px_90px_90px_100px_140px] md:items-center md:gap-3">
             {/* Name */}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -140,6 +141,11 @@ export function PresentationList({ presentations, onRefresh }: PresentationListP
             {/* Modified */}
             <div className="hidden text-xs text-muted-foreground md:block">
               {formatDate(p.updated_at)}
+            </div>
+
+            {/* Creator */}
+            <div className="hidden truncate text-xs text-muted-foreground md:block">
+              {p.creatorName || '—'}
             </div>
 
             {/* Active toggle */}

@@ -52,7 +52,7 @@ export default function CastingPresentationsPage() {
           .single(),
         supabase
           .from('presentations')
-          .select('id, name, type, access_token, password, is_active, expires_at, created_at, updated_at, created_by, presentation_sessions(id), presentation_items(id)')
+          .select('id, name, type, access_token, password, is_active, expires_at, created_at, updated_at, created_by, profiles!created_by(display_name, first_name, last_name), presentation_sessions(id), presentation_items(id)')
           .eq('casting_call_id', castingId)
           .order('created_at', { ascending: false }),
         supabase
@@ -87,20 +87,24 @@ export default function CastingPresentationsPage() {
 
       // Build presentation rows with counts
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const presRows: PresentationRow[] = ((presentationsRes.data ?? []) as any[]).map((p) => ({
-        id: p.id,
-        name: p.name,
-        type: p.type,
-        access_token: p.access_token,
-        password: p.password,
-        is_active: p.is_active,
-        expires_at: p.expires_at,
-        created_at: p.created_at,
-        updated_at: p.updated_at,
-        sessionCount: Array.isArray(p.presentation_sessions) ? p.presentation_sessions.length : 0,
-        itemCount: Array.isArray(p.presentation_items) ? p.presentation_items.length : 0,
-        creatorName: '',
-      }));
+      const presRows: PresentationRow[] = ((presentationsRes.data ?? []) as any[]).map((p) => {
+        const creator = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+        const creatorName = creator?.display_name || `${creator?.first_name ?? ''} ${creator?.last_name ?? ''}`.trim() || '';
+        return {
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          access_token: p.access_token,
+          password: p.password,
+          is_active: p.is_active,
+          expires_at: p.expires_at,
+          created_at: p.created_at,
+          updated_at: p.updated_at,
+          sessionCount: Array.isArray(p.presentation_sessions) ? p.presentation_sessions.length : 0,
+          itemCount: Array.isArray(p.presentation_items) ? p.presentation_items.length : 0,
+          creatorName,
+        };
+      });
       setPresentations(presRows);
     } catch (err) {
       setFetchError(`Fetch failed: ${err instanceof Error ? err.message : String(err)}`);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -36,6 +37,7 @@ export interface MediaRequestRow {
 
 interface MediaRequestListProps {
   requests: MediaRequestRow[];
+  castingId: string;
 }
 
 const REQUEST_STATUS_VARIANTS: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 'secondary'> = {
@@ -96,7 +98,7 @@ function computeCounts(recipients: RecipientRow[]) {
   return counts;
 }
 
-export function MediaRequestList({ requests }: MediaRequestListProps) {
+export function MediaRequestList({ requests, castingId }: MediaRequestListProps) {
   const [expanded, setExpanded] = useState<{ requestId: string; status: MediaResponseStatus } | null>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
@@ -149,7 +151,12 @@ export function MediaRequestList({ requests }: MediaRequestListProps) {
               <div className="px-4 py-3 hover:bg-muted/30 md:grid md:grid-cols-[1fr_100px_80px_repeat(5,60px)_90px] md:items-center md:gap-2">
                 {/* Name + role (mobile shows inline) */}
                 <div className="min-w-0">
-                  <span className="font-medium text-foreground">{req.name}</span>
+                  <Link
+                    href={`/admin/castings/${castingId}/requests/${req.id}`}
+                    className="font-medium text-foreground hover:text-brand-secondary hover:underline"
+                  >
+                    {req.name}
+                  </Link>
                   {roleName && (
                     <Badge variant="outline" className="ml-2 text-[10px] md:hidden">{roleName}</Badge>
                   )}

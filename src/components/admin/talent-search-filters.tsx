@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -54,10 +54,28 @@ function toStringSelectOptions(arr: readonly string[]) {
   return [{ value: '', label: 'Any' }, ...arr.map((s) => ({ value: s, label: s }))];
 }
 
+const TEXT_FILTER_KEYS: FilterKey[] = ['q', 'location', 'skills', 'agency'];
+const DEBOUNCE_MS = 400;
+
 export function TalentSearchFilters() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Derive text filter values from URL params — used as controlled input values
+  // Only overridden locally while typing (debounce timer active)
+  const urlTextValues = useMemo(() => {
+    const vals: Record<string, string> = {};
+    for (const key of TEXT_FILTER_KEYS) vals[key] = searchParams.get(key) ?? '';
+    return vals;
+  }, [searchParams]);
+
+  // Local overrides while user is typing (cleared after debounce fires)
+  const [localOverrides, setLocalOverrides] = useState<Record<string, string>>({});
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Merge: local override wins while typing, URL value otherwise
+  const textValues: Record<string, string> = { ...urlTextValues, ...localOverrides };
 
   const get = useCallback((key: FilterKey) => searchParams.get(key) ?? '', [searchParams]);
 
@@ -71,6 +89,25 @@ export function TalentSearchFilters() {
     // Reset to page 1 when filters change
     params.delete('page');
     router.push(`/admin/talent-search?${params.toString()}`);
+  }
+
+  function updateTextFilter(key: FilterKey, value: string) {
+    setLocalOverrides((prev) => ({ ...prev, [key]: value }));
+
+    // Clear previous timer
+    if (debounceTimers.current[key]) {
+      clearTimeout(debounceTimers.current[key]);
+    }
+
+    // Debounce the URL push, then clear local override
+    debounceTimers.current[key] = setTimeout(() => {
+      updateFilter(key, value);
+      setLocalOverrides((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }, DEBOUNCE_MS);
   }
 
   function removeFilter(key: FilterKey) {
@@ -91,8 +128,8 @@ export function TalentSearchFilters() {
         <Input
           id="search"
           placeholder="Search by name, skills, bio..."
-          value={get('q')}
-          onChange={(e) => updateFilter('q', e.target.value)}
+          value={textValues.q ?? ''}
+          onChange={(e) => updateTextFilter('q', e.target.value)}
         />
         <Select
           id="talent_type"
@@ -124,8 +161,8 @@ export function TalentSearchFilters() {
         <Input
           id="location"
           placeholder="City or state..."
-          value={get('location')}
-          onChange={(e) => updateFilter('location', e.target.value)}
+          value={textValues.location ?? ''}
+          onChange={(e) => updateTextFilter('location', e.target.value)}
         />
         <div className="flex gap-2">
           <Input
@@ -240,15 +277,15 @@ export function TalentSearchFilters() {
               id="skills"
               label="Skills"
               placeholder="e.g. martial arts, improv..."
-              value={get('skills')}
-              onChange={(e) => updateFilter('skills', e.target.value)}
+              value={textValues.skills ?? ''}
+              onChange={(e) => updateTextFilter('skills', e.target.value)}
             />
             <Input
               id="agency"
               label="Agency"
               placeholder="Agency name..."
-              value={get('agency')}
-              onChange={(e) => updateFilter('agency', e.target.value)}
+              value={textValues.agency ?? ''}
+              onChange={(e) => updateTextFilter('agency', e.target.value)}
             />
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">

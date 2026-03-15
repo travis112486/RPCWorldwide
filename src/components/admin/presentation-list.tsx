@@ -20,8 +20,19 @@ export interface PresentationRow {
   creatorName: string;
 }
 
+export interface FeedbackEntry {
+  id: string;
+  viewer_name: string | null;
+  rating: number | null;
+  comment: string | null;
+  created_at: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  applications?: any;
+}
+
 interface PresentationListProps {
   presentations: PresentationRow[];
+  feedbackByPresentation?: Record<string, FeedbackEntry[]>;
   onRefresh: () => void;
 }
 
@@ -34,8 +45,9 @@ function isExpired(expiresAt: string | null): boolean {
   return new Date(expiresAt) < new Date();
 }
 
-export function PresentationList({ presentations, onRefresh }: PresentationListProps) {
+export function PresentationList({ presentations, feedbackByPresentation = {}, onRefresh }: PresentationListProps) {
   const supabase = createClient();
+  const [expandedFeedback, setExpandedFeedback] = useState<string | null>(null);
   const { toast } = useToast();
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -109,7 +121,8 @@ export function PresentationList({ presentations, onRefresh }: PresentationListP
         const count = p.type === 'live' ? p.sessionCount : p.itemCount;
 
         return (
-          <div key={p.id} className="border-b border-border px-4 py-3 last:border-b-0 hover:bg-muted/30 md:grid md:grid-cols-[1fr_80px_70px_90px_90px_100px_140px] md:items-center md:gap-3">
+          <div key={p.id} className="border-b border-border last:border-b-0">
+          <div className="px-4 py-3 hover:bg-muted/30 md:grid md:grid-cols-[1fr_80px_70px_90px_90px_100px_140px] md:items-center md:gap-3">
             {/* Name */}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -169,6 +182,15 @@ export function PresentationList({ presentations, onRefresh }: PresentationListP
 
             {/* Actions */}
             <div className="mt-2 flex items-center gap-1.5 md:mt-0">
+              {(feedbackByPresentation[p.id]?.length ?? 0) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setExpandedFeedback(expandedFeedback === p.id ? null : p.id)}
+                  className="rounded-md px-2 py-1 text-xs font-medium text-brand-secondary hover:bg-brand-secondary/10 transition-colors"
+                >
+                  Feedback ({feedbackByPresentation[p.id].length})
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => handleCopyLink(p.access_token)}
@@ -186,6 +208,47 @@ export function PresentationList({ presentations, onRefresh }: PresentationListP
               </button>
             </div>
           </div>
+
+          {/* Expanded feedback */}
+          {expandedFeedback === p.id && feedbackByPresentation[p.id] && (
+            <div className="border-t border-border bg-muted/20 px-4 py-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                Feedback ({feedbackByPresentation[p.id].length})
+              </p>
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {feedbackByPresentation[p.id].map((fb) => {
+                  const talentProfile = Array.isArray(fb.applications?.profiles)
+                    ? fb.applications.profiles[0]
+                    : fb.applications?.profiles;
+                  const talentName = talentProfile?.display_name
+                    || `${talentProfile?.first_name ?? ''} ${talentProfile?.last_name ?? ''}`.trim()
+                    || 'Unknown Talent';
+
+                  return (
+                    <div key={fb.id} className="rounded-md bg-card px-3 py-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-foreground">{talentName}</span>
+                          {fb.rating && (
+                            <span className="text-xs text-amber-500">
+                              {'★'.repeat(fb.rating)}{'☆'.repeat(5 - fb.rating)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {fb.viewer_name || 'Anonymous'} · {formatDate(fb.created_at)}
+                        </div>
+                      </div>
+                      {fb.comment && (
+                        <p className="mt-1 text-xs text-muted-foreground">{fb.comment}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
         );
       })}
     </div>

@@ -29,6 +29,8 @@ export default function CastingPresentationsPage() {
   const [presentations, setPresentations] = useState<PresentationRow[]>([]);
   const [sessions, setSessions] = useState<SessionOption[]>([]);
   const [applications, setApplications] = useState<ApplicationOption[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [feedbackByPresentation, setFeedbackByPresentation] = useState<Record<string, any[]>>({});
   const [castingTitle, setCastingTitle] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -44,7 +46,7 @@ export default function CastingPresentationsPage() {
     if (!user) return;
 
     try {
-      const [castingRes, presentationsRes, sessionsRes, applicationsRes] = await Promise.all([
+      const [castingRes, presentationsRes, sessionsRes, applicationsRes, feedbackRes] = await Promise.all([
         supabase
           .from('casting_calls')
           .select('title')
@@ -64,6 +66,10 @@ export default function CastingPresentationsPage() {
           .from('applications')
           .select('id, user_id, profiles!user_id(display_name, first_name, last_name), casting_roles(name)')
           .eq('casting_call_id', castingId),
+        supabase
+          .from('presentation_feedback')
+          .select('id, presentation_id, application_id, viewer_name, rating, comment, created_at, applications(profiles!user_id(display_name, first_name, last_name))')
+          .order('created_at', { ascending: false }),
       ]);
 
       if (castingRes.error) {
@@ -84,6 +90,15 @@ export default function CastingPresentationsPage() {
         return { id: a.id, userName, roleName: r?.name ?? null };
       });
       setApplications(appOptions);
+
+      // Group feedback by presentation
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fbMap: Record<string, any[]> = {};
+      for (const fb of feedbackRes.data ?? []) {
+        if (!fbMap[fb.presentation_id]) fbMap[fb.presentation_id] = [];
+        fbMap[fb.presentation_id].push(fb);
+      }
+      setFeedbackByPresentation(fbMap);
 
       // Build presentation rows with counts
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -178,6 +193,7 @@ export default function CastingPresentationsPage() {
         {/* List */}
         <PresentationList
           presentations={presentations}
+          feedbackByPresentation={feedbackByPresentation}
           onRefresh={() => { setLoading(true); loadData(); }}
         />
       </div>

@@ -6,9 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { Spinner } from '@/components/ui/spinner';
+import { FeedbackForm } from '@/components/public/feedback-form';
 
 interface TalentData {
   id: string;
+  applicationId: string;
   displayName: string;
   bio: string | null;
   city: string | null;
@@ -24,6 +26,7 @@ interface PresentationData {
     name: string;
     castingTitle: string;
     type: string;
+    allowFeedback: boolean;
   };
   talents: TalentData[];
   requiresPassword?: boolean;
@@ -43,6 +46,7 @@ export function PresentationViewer({ token }: { token: string }) {
   const [submittingPassword, setSubmittingPassword] = useState(false);
   const [selectedTalent, setSelectedTalent] = useState<TalentData | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [usedPassword, setUsedPassword] = useState<string | undefined>(undefined);
 
   async function fetchWithPassword(pwd: string) {
     setLoading(true);
@@ -68,6 +72,7 @@ export function PresentationViewer({ token }: { token: string }) {
       }
 
       setRequiresPassword(false);
+      setUsedPassword(pwd);
       setData(json);
     } catch {
       setError('Network error. Please try again.');
@@ -300,6 +305,16 @@ export function PresentationViewer({ token }: { token: string }) {
                 <p className="text-[10px] font-medium text-neutral-500">Bio</p>
                 <p className="mt-1 whitespace-pre-line text-sm text-neutral-700">{selectedTalent.bio}</p>
               </div>
+            )}
+
+            {/* Feedback form */}
+            {data?.presentation.allowFeedback && (
+              <FeedbackForm
+                token={token}
+                applicationId={selectedTalent.applicationId}
+                password={usedPassword}
+                onSubmitted={() => {}}
+              />
             )}
 
             {/* Navigation */}

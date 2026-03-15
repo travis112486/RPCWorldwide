@@ -11,6 +11,7 @@ const TABS = [
   { label: 'Overview', segment: '' },
   { label: 'Applications', segment: '/applications' },
   { label: 'Requests', segment: '/requests' },
+  { label: 'Presentations', segment: '/presentations' },
 ] as const;
 
 export function CastingSubNav({ castingId }: CastingSubNavProps) {

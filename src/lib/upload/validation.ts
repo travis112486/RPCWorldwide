@@ -52,6 +52,10 @@ export const BUCKET_CONFIG: Record<string, BucketRule | Record<string, BucketRul
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ],
   },
+  'self-tapes': {
+    maxSize: 209_715_200, // 200 MB — matches bucket config in migration 00010
+    allowedMimes: ['video/mp4', 'video/quicktime', 'video/webm', 'image/jpeg', 'image/png'],
+  },
 }
 
 /**
